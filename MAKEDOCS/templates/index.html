@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Система управления договорами</h1>
+        <p class="lead">Добро пожаловать в систему управления клиентами и формирования договоров</p>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-3 mb-3">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-3x text-primary mb-3"></i>
+                <h5 class="card-title">Клиенты</h5>
+                <p class="card-text">Управление базой данных клиентов (ЮЛ и ИП)</p>
+                <a href="{{ url_for('clients') }}" class="btn btn-primary">Перейти</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-building fa-3x text-success mb-3"></i>
+                <h5 class="card-title">Организация</h5>
+                <p class="card-text">Управление данными организации</p>
+                <a href="{{ url_for('organizations') }}" class="btn btn-success">Перейти</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-file-word fa-3x text-warning mb-3"></i>
+                <h5 class="card-title">Шаблоны</h5>
+                <p class="card-text">Загрузка и управление шаблонами договоров</p>
+                <a href="{{ url_for('templates') }}" class="btn btn-warning">Перейти</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-file-signature fa-3x text-info mb-3"></i>
+                <h5 class="card-title">Договоры</h5>
+                <p class="card-text">Формирование договоров на основе шаблонов</p>
+                <a href="{{ url_for('contracts') }}" class="btn btn-info">Перейти</a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

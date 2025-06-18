@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Добавить организацию{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h3 class="mb-0">Добавить новую организацию</h3>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="signatory_position" class="form-label">Должность подписанта <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="signatory_position" name="signatory_position" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="signatory_name" class="form-label">ФИО подписанта <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="signatory_name" name="signatory_name" required>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="signatory_power_of_attorney" class="form-label">Доверенность подписанта</label>
+                        <input type="text" class="form-control" id="signatory_power_of_attorney" name="signatory_power_of_attorney">
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="executor_position" class="form-label">Должность исполнителя <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="executor_position" name="executor_position" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="executor_name" class="form-label">ФИО исполнителя <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="executor_name" name="executor_name" required>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('organizations') }}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-primary">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

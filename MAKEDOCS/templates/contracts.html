@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Формирование договоров{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1 class="mb-4">Формирование договоров</h1>
+        
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Создать договоры</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('generate_contracts') }}">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="client_id" class="form-label">Выберите клиента <span class="text-danger">*</span></label>
+                            <select class="form-select" id="client_id" name="client_id" required>
+                                <option value="">-- Выберите клиента --</option>
+                                {% for client in clients %}
+                                <option value="{{ client.id }}">{{ client.short_name or client.full_name }} ({{ client.inn }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="col-md-6 mb-3">
+                            <label for="organization_id" class="form-label">Выберите организацию <span class="text-danger">*</span></label>
+                            <select class="form-select" id="organization_id" name="organization_id" required>
+                                <option value="">-- Выберите организацию --</option>
+                                {% for org in organizations %}
+                                <option value="{{ org.id }}">{{ org.signatory_name }} ({{ org.signatory_position }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Выберите шаблоны <span class="text-danger">*</span></label>
+                        {% if templates %}
+                        <div class="row">
+                            {% for template in templates %}
+                            <div class="col-md-6 mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="{{ template.id }}" id="template_{{ template.id }}" name="template_ids">
+                                    <label class="form-check-label" for="template_{{ template.id }}">
+                                        <strong>{{ template.name }}</strong>
+                                        {% if template.description %}
+                                        <br><small class="text-muted">{{ template.description }}</small>
+                                        {% endif %}
+                                        <br><small class="text-info">
+                                            <i class="fas fa-file-word me-1"></i>{{ template.files|length }} файл(ов)
+                                            {% if template.files %}
+                                            - {{ template.files|map(attribute='original_filename')|join(', ') }}
+                                            {% endif %}
+                                        </small>
+                                    </label>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <p class="text-muted">Нет доступных шаблонов. <a href="{{ url_for('templates') }}">Загрузите шаблоны</a> сначала.</p>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg" {% if not templates %}disabled{% endif %}>
+                            <i class="fas fa-file-download me-2"></i>Сформировать и скачать договоры
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        {% if not clients %}
+        <div class="alert alert-warning mt-3">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Нет доступных клиентов. <a href="{{ url_for('add_client') }}">Добавьте клиентов</a> для начала работы.
+        </div>
+        {% endif %}
+        
+        {% if not organizations %}
+        <div class="alert alert-warning mt-3">
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            Нет доступных организаций. <a href="{{ url_for('add_organization') }}">Добавьте организацию</a> для начала работы.
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% block scripts %}
+<script>
+// Проверка выбора хотя бы одного шаблона
+document.querySelector('form').addEventListener('submit', function(e) {
+    const checkboxes = document.querySelectorAll('input[name="template_ids"]:checked');
+    if (checkboxes.length === 0) {
+        e.preventDefault();
+        alert('Пожалуйста, выберите хотя бы один шаблон для генерации.');
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}
