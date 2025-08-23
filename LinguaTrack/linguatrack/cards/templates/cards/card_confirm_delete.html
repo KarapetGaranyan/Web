@@ -1,0 +1,36 @@
+{% extends 'cards/base.html' %}
+
+{% block title %}Удаление карточки - LinguaTrack{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h3>🗑️ Удаление карточки</h3>
+            </div>
+            <div class="card-body">
+                <p>Вы уверены, что хотите удалить карточку:</p>
+                <div class="alert alert-light">
+                    <strong>{{ card.word }}</strong> — {{ card.translation }}
+                </div>
+                <p class="text-danger">
+                    <small>Это действие нельзя отменить!</small>
+                </p>
+
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'cards:card_detail' card.pk %}" class="btn btn-secondary">
+                            Отмена
+                        </a>
+                        <button type="submit" class="btn btn-danger">
+                            Удалить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

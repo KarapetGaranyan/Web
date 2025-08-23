@@ -1,0 +1,304 @@
+{% extends 'cards/base.html' %}
+{% load math_filters %}
+
+{% block title %}Мои карточки - LinguaTrack{% endblock %}
+
+{% block content %}
+<!-- Telegram интеграция -->
+{% if user.is_authenticated %}
+<div class="telegram-integration">
+    <div class="row align-items-center">
+        <div class="col-md-8">
+            <h4>🤖 Изучай в Telegram!</h4>
+            <p class="mb-0">Получай напоминания и изучай слова прямо в мессенджере</p>
+        </div>
+        <div class="col-md-4 text-end">
+            {% if user.telegram_profile %}
+                <span class="badge bg-success">✅ Подключен</span>
+                <small class="d-block">@{{ user.telegram_profile.username|default:user.telegram_profile.telegram_id }}</small>
+            {% else %}
+                <a href="/telegram/link/" class="btn btn-light">
+                    Подключить
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<div class="row">
+    <div class="col-md-9">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Мои карточки</h1>
+            <div>
+                <a href="{% url 'cards:card_create' %}" class="btn btn-success">
+                    ➕ Добавить карточку
+                </a>
+                {% if due_cards_count > 0 %}
+                    <a href="{% url 'cards:smart_study' %}" class="btn btn-primary">
+                        🧠 Умное изучение ({{ due_cards_count }})
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Фильтры -->
+        <form method="get" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <input type="text" class="form-control" name="search"
+                       placeholder="Поиск..."
+                       value="{{ search_query }}">
+            </div>
+            <div class="col-md-3">
+                <select name="difficulty" class="form-select">
+                    <option value="">Все уровни</option>
+                    {% for value, label in difficulty_choices %}
+                        <option value="{{ value }}" {% if difficulty_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <select name="status" class="form-select">
+                    {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if status_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-outline-primary">Фильтр</button>
+                <a href="{% url 'cards:card_list' %}" class="btn btn-outline-secondary">Сбросить</a>
+            </div>
+        </form>
+
+        <!-- Список карточек -->
+        {% if cards %}
+            <div class="row">
+                {% for card in cards %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100 card-hover
+                            {% if card.is_due_for_review %}border-warning{% endif %}
+                            {% if card.is_learned %}border-success{% endif %}">
+
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-secondary badge-difficulty">
+                                        {{ card.get_difficulty_display }}
+                                    </span>
+                                    {% if card.is_learned %}
+                                        <span class="badge bg-success">✓ Выучено</span>
+                                    {% elif card.is_due_for_review %}
+                                        <span class="badge bg-warning">⏰ К повторению</span>
+                                    {% elif card.times_studied == 0 %}
+                                        <span class="badge bg-info">🆕 Новое</span>
+                                    {% endif %}
+                                </div>
+                                <small class="text-muted">{{ card.created_at|date:"d.m.Y" }}</small>
+                            </div>
+
+                            <div class="card-body">
+                                <h5 class="card-title">{{ card.word }}</h5>
+                                <p class="card-text text-muted">{{ card.translation }}</p>
+
+                                <!-- Прогресс изучения (упрощенная версия) -->
+                                {% if card.times_studied > 0 %}
+                                    <div class="mb-2">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <small class="text-muted">
+                                                {{ card.times_studied }} раз • {{ card.accuracy_rate }}%
+                                            </small>
+                                            <div class="progress" style="width: 60px; height: 8px;">
+                                                <div class="progress-bar bg-success"
+                                                     style="width: {{ card.accuracy_rate }}%"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {% endif %}
+
+                                {% if card.example %}
+                                    <small class="text-muted">
+                                        <em>{{ card.example|truncatechars:50 }}</em>
+                                    </small>
+                                {% endif %}
+
+                                <!-- Следующее повторение -->
+                                {% if card.schedule %}
+                                    <div class="mt-2">
+                                        <small class="
+                                            {% if card.is_due_for_review %}text-warning
+                                            {% else %}text-muted{% endif %}">
+                                            📅 Повторить:
+                                            {% if card.is_due_for_review %}
+                                                сейчас
+                                            {% else %}
+                                                {{ card.schedule.next_review|date:"d.m H:i" }}
+                                            {% endif %}
+                                        </small>
+                                    </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="card-footer">
+                                <div class="btn-group w-100" role="group">
+                                    <a href="{% url 'cards:card_detail' card.pk %}"
+                                       class="btn btn-sm btn-outline-primary">📖</a>
+                                    <a href="{% url 'cards:card_edit' card.pk %}"
+                                       class="btn btn-sm btn-outline-warning">✏️</a>
+
+                                    <!-- Кнопка озвучки -->
+                                    {% if card.audio %}
+                                        <button onclick="playAudio({{ card.pk }})"
+                                                class="btn btn-sm btn-outline-info">🔊</button>
+                                        <audio id="audio-{{ card.pk }}" preload="none">
+                                            <source src="{% url 'cards:play_audio' card.pk %}" type="audio/mpeg">
+                                        </audio>
+                                    {% else %}
+                                        <a href="{% url 'cards:generate_audio' card.pk %}"
+                                           class="btn btn-sm btn-outline-secondary">🎵</a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-5">
+                <div class="mb-4">
+                    <i class="display-1">📚</i>
+                </div>
+                <h3 class="text-muted">Карточки не найдены</h3>
+                <p class="text-muted">Создайте свою первую карточку для изучения!</p>
+                <a href="{% url 'cards:card_create' %}" class="btn btn-success btn-lg">
+                    ➕ Создать карточку
+                </a>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Боковая панель -->
+    <div class="col-md-3">
+        <!-- Общая статистика -->
+        <div class="card mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">📊 Статистика</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <div class="border-end">
+                            <h4 class="text-primary mb-0">{{ stats.total_cards }}</h4>
+                            <small class="text-muted">Всего карточек</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success mb-0">{{ stats.learned_cards }}</h4>
+                        <small class="text-muted">Выучено</small>
+                    </div>
+                </div>
+
+                {% if due_cards_count > 0 %}
+                    <div class="alert alert-warning py-2">
+                        <strong>⏰ {{ due_cards_count }}</strong> к повторению
+                    </div>
+                {% endif %}
+
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small>Точность:</small>
+                        <small><strong>{{ stats.accuracy_rate }}%</strong></small>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-success"
+                             style="width: {{ stats.accuracy_rate }}%"></div>
+                    </div>
+                </div>
+
+                <!-- Недельная цель -->
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between mb-1">
+                        <small>Недельная цель:</small>
+                        <small>{{ stats.current_week_studied }}/{{ stats.weekly_goal }}</small>
+                    </div>
+                    <div class="progress" style="height: 8px;">
+                        <div class="progress-bar bg-info"
+                             style="width: {{ stats.weekly_progress }}%"></div>
+                    </div>
+                </div>
+
+                {% if stats.last_study %}
+                    <small class="text-muted">
+                        🕐 Последнее изучение:<br>
+                        {{ stats.last_study|date:"d.m.Y H:i" }}
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Быстрые действия -->
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">⚡ Быстрые действия</h5>
+            </div>
+            <div class="card-body d-grid gap-2">
+                {% if due_cards_count > 0 %}
+                    <a href="{% url 'cards:smart_study' %}" class="btn btn-primary">
+                        🧠 Умное изучение ({{ due_cards_count }})
+                    </a>
+                {% endif %}
+                <a href="{% url 'cards:card_create' %}" class="btn btn-success">
+                    ➕ Новая карточка
+                </a>
+                <a href="{% url 'cards:study_results' %}" class="btn btn-outline-info">
+                    📈 Подробная статистика
+                </a>
+            </div>
+        </div>
+
+        <!-- Telegram статус -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">🤖 Telegram</h5>
+            </div>
+            <div class="card-body">
+                {% if user.telegram_profile %}
+                    <div class="d-flex align-items-center mb-2">
+                        <span class="badge bg-success me-2">✅</span>
+                        <small>Подключен</small>
+                    </div>
+                    <small class="text-muted">
+                        @{{ user.telegram_profile.username|default:user.telegram_profile.telegram_id }}
+                    </small>
+                    <div class="mt-2">
+                        <small class="text-muted">
+                            Уведомления:
+                            {% if user.telegram_profile.notifications_enabled %}
+                                ✅ Включены
+                            {% else %}
+                                ❌ Отключены
+                            {% endif %}
+                        </small>
+                    </div>
+                {% else %}
+                    <p class="text-muted mb-3">Подключи Telegram для изучения на ходу!</p>
+                    <a href="/telegram/link/" class="btn btn-primary btn-sm">
+                        🤖 Подключить бота
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function playAudio(cardId) {
+    const audio = document.getElementById(`audio-${cardId}`);
+    if (audio) {
+        audio.play().catch(e => console.log('Ошибка воспроизведения:', e));
+    }
+}
+</script>
+{% endblock %}

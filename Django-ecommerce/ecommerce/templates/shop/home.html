@@ -1,0 +1,250 @@
+{% extends 'shop/base.html' %}
+
+{% block title %}Главная - Интернет-магазин{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section">
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-8 mx-auto text-center">
+                <h1 class="hero-title">Добро пожаловать в наш магазин!</h1>
+                <p class="hero-subtitle">Качественные товары по доступным ценам с быстрой доставкой</p>
+                <a href="{% url 'product_list' %}" class="btn btn-primary btn-lg me-3">
+                    <i class="fas fa-shopping-bag"></i> Перейти к покупкам
+                </a>
+                <a href="#categories" class="btn btn-outline-primary btn-lg">
+                    <i class="fas fa-list"></i> Категории
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Features Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="row">
+            <div class="col-md-3 text-center mb-4">
+                <div class="feature-icon mb-3">
+                    <i class="fas fa-shipping-fast fa-3x text-primary"></i>
+                </div>
+                <h5>Быстрая доставка</h5>
+                <p class="text-muted">Доставляем по всей России в кратчайшие сроки</p>
+            </div>
+            <div class="col-md-3 text-center mb-4">
+                <div class="feature-icon mb-3">
+                    <i class="fas fa-shield-alt fa-3x text-success"></i>
+                </div>
+                <h5>Гарантия качества</h5>
+                <p class="text-muted">Все товары проходят контроль качества</p>
+            </div>
+            <div class="col-md-3 text-center mb-4">
+                <div class="feature-icon mb-3">
+                    <i class="fas fa-headset fa-3x text-info"></i>
+                </div>
+                <h5>Поддержка 24/7</h5>
+                <p class="text-muted">Наши специалисты всегда готовы помочь</p>
+            </div>
+            <div class="col-md-3 text-center mb-4">
+                <div class="feature-icon mb-3">
+                    <i class="fas fa-credit-card fa-3x text-warning"></i>
+                </div>
+                <h5>Удобная оплата</h5>
+                <p class="text-muted">Принимаем все виды платежей</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Categories Section -->
+<section id="categories" class="py-5 bg-light">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2>Популярные категории</h2>
+            <p class="text-muted">Выберите категорию товаров, которая вас интересует</p>
+        </div>
+        <div class="row">
+            <div class="col-md-4 mb-4">
+                <div class="category-card">
+                    <div class="category-icon">
+                        <i class="fas fa-laptop"></i>
+                    </div>
+                    <h5>Электроника</h5>
+                    <p class="text-muted">Смартфоны, ноутбуки, планшеты и аксессуары</p>
+                    <a href="{% url 'product_list' %}" class="btn btn-outline-primary">Посмотреть</a>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="category-card">
+                    <div class="category-icon">
+                        <i class="fas fa-tshirt"></i>
+                    </div>
+                    <h5>Одежда</h5>
+                    <p class="text-muted">Мужская, женская и детская одежда</p>
+                    <a href="{% url 'product_list' %}" class="btn btn-outline-primary">Посмотреть</a>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="category-card">
+                    <div class="category-icon">
+                        <i class="fas fa-home"></i>
+                    </div>
+                    <h5>Дом и сад</h5>
+                    <p class="text-muted">Товары для дома, сада и ремонта</p>
+                    <a href="{% url 'product_list' %}" class="btn btn-outline-primary">Посмотреть</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- Featured Products Section -->
+<section class="py-5">
+    <div class="container">
+        <div class="text-center mb-5">
+            <h2>Рекомендуемые товары</h2>
+            <p class="text-muted">Самые популярные товары нашего магазина</p>
+        </div>
+        
+        <!-- Здесь будут отображаться товары когда вы создадите модели -->
+        <div class="row">
+            {% comment %}
+            {% for product in featured_products %}
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card product-card">
+                    <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}">
+                    <div class="card-body">
+                        <h5 class="product-title">{{ product.name }}</h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="product-price">{{ product.price }} ₽</span>
+                            <div class="rating">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="far fa-star"></i>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary w-100 mt-3" onclick="addToCart({{ product.id }})">
+                            <i class="fas fa-cart-plus"></i> В корзину
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+            {% endcomment %}
+            
+            <!-- Временные карточки товаров для демонстрации -->
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card product-card">
+                    <img src="https://via.placeholder.com/300x250" class="card-img-top" alt="Товар 1">
+                    <div class="card-body">
+                        <h5 class="product-title">Пример товара 1</h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="product-price">1999 ₽</span>
+                            <div class="rating">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="far fa-star"></i>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary w-100 mt-3" onclick="addToCart(1)">
+                            <i class="fas fa-cart-plus"></i> В корзину
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card product-card">
+                    <img src="https://via.placeholder.com/300x250" class="card-img-top" alt="Товар 2">
+                    <div class="card-body">
+                        <h5 class="product-title">Пример товара 2</h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="product-price">2999 ₽</span>
+                            <div class="rating">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary w-100 mt-3" onclick="addToCart(2)">
+                            <i class="fas fa-cart-plus"></i> В корзину
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card product-card">
+                    <img src="https://via.placeholder.com/300x250" class="card-img-top" alt="Товар 3">
+                    <div class="card-body">
+                        <h5 class="product-title">Пример товара 3</h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="product-price">1499 ₽</span>
+                            <div class="rating">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="far fa-star"></i>
+                                <i class="far fa-star"></i>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary w-100 mt-3" onclick="addToCart(3)">
+                            <i class="fas fa-cart-plus"></i> В корзину
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-3 col-md-6 mb-4">
+                <div class="card product-card">
+                    <img src="https://via.placeholder.com/300x250" class="card-img-top" alt="Товар 4">
+                    <div class="card-body">
+                        <h5 class="product-title">Пример товара 4</h5>
+                        <div class="d-flex justify-content-between align-items-center">
+                            <span class="product-price">3999 ₽</span>
+                            <div class="rating">
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="fas fa-star"></i>
+                                <i class="far fa-star"></i>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary w-100 mt-3" onclick="addToCart(4)">
+                            <i class="fas fa-cart-plus"></i> В корзину
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="text-center mt-4">
+            <a href="{% url 'product_list' %}" class="btn btn-outline-primary btn-lg">
+                Посмотреть все товары <i class="fas fa-arrow-right"></i>
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- Newsletter Section -->
+<section class="py-5 bg-primary text-white">
+    <div class="container">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <h3>Подпишитесь на рассылку</h3>
+                <p class="mb-0">Получайте уведомления о новых товарах и специальных предложениях</p>
+            </div>
+            <div class="col-md-6">
+                <form class="d-flex">
+                    <input type="email" class="form-control me-2" placeholder="Ваш email">
+                    <button type="submit" class="btn btn-light">Подписаться</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

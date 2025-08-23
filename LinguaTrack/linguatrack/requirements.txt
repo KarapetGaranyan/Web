@@ -1,0 +1,8 @@
+Django==4.2.7
+celery==5.3.4
+redis==5.0.1
+gtts==2.5.1
+django-extensions==3.2.3
+aiogram==3.3.0
+aiofiles==23.2.1
+python-decouple==3.8

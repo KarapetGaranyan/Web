@@ -1,0 +1,44 @@
+{% extends 'cards/base.html' %}
+
+{% block title %}Telegram подключен - LinguaTrack{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h3>✅ Telegram подключен</h3>
+            </div>
+            <div class="card-body">
+                <p>Ваш Telegram аккаунт уже привязан к LinguaTrack:</p>
+                
+                <div class="alert alert-light">
+                    <strong>Telegram:</strong> @{{ telegram_user.username|default:telegram_user.telegram_id }}<br>
+                    <strong>Имя:</strong> {{ telegram_user.first_name }} {{ telegram_user.last_name }}<br>
+                    <strong>Уведомления:</strong> 
+                    {% if telegram_user.notifications_enabled %}
+                        ✅ Включены
+                    {% else %}
+                        ❌ Отключены
+                    {% endif %}
+                </div>
+                
+                <h5>🤖 Доступные команды в боте:</h5>
+                <ul>
+                    <li><code>/today</code> - карточки на сегодня</li>
+                    <li><code>/test</code> - быстрый тест</li>
+                    <li><code>/progress</code> - статистика</li>
+                    <li><code>/say слово</code> - озвучить слово</li>
+                    <li><code>/cards</code> - список карточек</li>
+                </ul>
+                
+                <div class="text-center">
+                    <a href="{% url 'cards:card_list' %}" class="btn btn-primary">
+                        📚 К карточкам
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,391 @@
+{% extends 'shop/base.html' %}
+
+{% block title %}Корзина - Интернет-магазин{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cart-item {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+        border: 1px solid #e9ecef;
+    }
+    
+    .cart-item-image {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 8px;
+    }
+    
+    .quantity-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    
+    .quantity-btn {
+        width: 30px;
+        height: 30px;
+        border: 1px solid #dee2e6;
+        background: white;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+    }
+    
+    .quantity-btn:hover {
+        background: #f8f9fa;
+    }
+    
+    .quantity-input {
+        width: 60px;
+        text-align: center;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        padding: 5px;
+    }
+    
+    .cart-summary {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 10px;
+        padding: 20px;
+        position: sticky;
+        top: 20px;
+    }
+    
+    .price-row {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+    }
+    
+    .total-row {
+        border-top: 2px solid #dee2e6;
+        padding-top: 15px;
+        margin-top: 15px;
+        font-size: 1.2em;
+        font-weight: bold;
+    }
+    
+    .empty-cart {
+        text-align: center;
+        padding: 60px 20px;
+    }
+    
+    .empty-cart-icon {
+        font-size: 4em;
+        color: #6c757d;
+        margin-bottom: 20px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-4">Корзина</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}">Главная</a></li>
+                    <li class="breadcrumb-item active">Корзина</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    {% if cart.items.exists %}
+        <div class="row">
+            <!-- Товары в корзине -->
+            <div class="col-lg-8">
+                {% for item in cart.items.all %}
+                <div class="cart-item" data-item-id="{{ item.id }}">
+                    <div class="row align-items-center">
+                        <div class="col-md-2">
+                            {% if item.product.images.first %}
+                                <img src="{{ item.product.images.first.image.url }}" 
+                                     class="cart-item-image" alt="{{ item.product.name }}">
+                            {% else %}
+                                <div class="cart-item-image bg-light d-flex align-items-center justify-content-center">
+                                    <i class="fas fa-image text-muted"></i>
+                                </div>
+                            {% endif %}
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <h5 class="mb-1">{{ item.product.name }}</h5>
+                            <p class="text-muted mb-0">{{ item.product.category.name }}</p>
+                            <small class="text-muted">Артикул: {{ item.product.sku }}</small>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <div class="quantity-controls">
+                                <button type="button" class="quantity-btn" onclick="updateQuantity({{ item.id }}, {{ item.quantity }} - 1)">
+                                    <i class="fas fa-minus"></i>
+                                </button>
+                                <input type="number" class="form-control quantity-input" 
+                                       value="{{ item.quantity }}" min="1" max="{{ item.product.stock }}"
+                                       onchange="updateQuantity({{ item.id }}, this.value)">
+                                <button type="button" class="quantity-btn" onclick="updateQuantity({{ item.id }}, {{ item.quantity }} + 1)">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-2 text-center">
+                            <div class="h5 mb-0">{{ item.product.price }} ₽</div>
+                            <small class="text-muted">за шт.</small>
+                        </div>
+                        
+                        <div class="col-md-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div class="h5 mb-0 item-total">{{ item.total_price }} ₽</div>
+                                <button type="button" class="btn btn-outline-danger btn-sm" 
+                                        onclick="removeFromCart({{ item.id }})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            
+            <!-- Сводка по заказу -->
+            <div class="col-lg-4">
+                <div class="cart-summary">
+                    <h4 class="mb-3">Сводка по заказу</h4>
+                    
+                    <div class="price-row">
+                        <span>Товары ({{ cart.total_items }} шт.)</span>
+                        <span id="subtotal">{{ cart.total_price }} ₽</span>
+                    </div>
+                    
+                    <div class="price-row">
+                        <span>Доставка</span>
+                        <span>300 ₽</span>
+                    </div>
+                    
+                    <div class="price-row total-row">
+                        <span>Итого</span>
+                        <span id="total">{{ cart.total_price|add:300 }} ₽</span>
+                    </div>
+                    
+                    <div class="d-grid gap-2 mt-4">
+                        <a href="{% url 'checkout' %}" class="btn btn-primary btn-lg">
+                            <i class="fas fa-credit-card"></i> Оформить заказ
+                        </a>
+                        <a href="{% url 'product_list' %}" class="btn btn-outline-secondary">
+                            <i class="fas fa-arrow-left"></i> Продолжить покупки
+                        </a>
+                    </div>
+                    
+                    <!-- Дополнительная информация -->
+                    <div class="mt-4 p-3 bg-light rounded">
+                        <h6><i class="fas fa-truck"></i> Доставка</h6>
+                        <small class="text-muted">
+                            Бесплатная доставка при заказе от 5000 ₽
+                        </small>
+                    </div>
+                    
+                    <div class="mt-3 p-3 bg-light rounded">
+                        <h6><i class="fas fa-shield-alt"></i> Гарантия</h6>
+                        <small class="text-muted">
+                            Возврат товара в течение 14 дней
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <!-- Пустая корзина -->
+        <div class="empty-cart">
+            <div class="empty-cart-icon">
+                <i class="fas fa-shopping-cart"></i>
+            </div>
+            <h3>Ваша корзина пуста</h3>
+            <p class="text-muted">Добавьте товары в корзину, чтобы сделать заказ</p>
+            <a href="{% url 'product_list' %}" class="btn btn-primary btn-lg">
+                <i class="fas fa-shopping-bag"></i> Перейти к покупкам
+            </a>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Модальное окно подтверждения удаления -->
+<div class="modal fade" id="confirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Подтверждение</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                Вы уверены, что хотите удалить товар из корзины?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">Удалить</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+<script>
+let itemToDelete = null;
+
+function updateQuantity(itemId, newQuantity) {
+    if (newQuantity < 1) {
+        removeFromCart(itemId);
+        return;
+    }
+    
+    fetch(`/cart/update/${itemId}/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            quantity: newQuantity
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Обновляем отображение
+            location.reload(); // Простое решение - перезагрузка страницы
+            showMessage(data.message, 'success');
+        } else {
+            showMessage(data.message, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showMessage('Произошла ошибка при обновлении корзины', 'error');
+    });
+}
+
+function removeFromCart(itemId) {
+    itemToDelete = itemId;
+    const modal = new bootstrap.Modal(document.getElementById('confirmModal'));
+    modal.show();
+}
+
+document.getElementById('confirmDelete').addEventListener('click', function() {
+    if (itemToDelete) {
+        console.log('Attempting to delete item:', itemToDelete);
+
+        fetch(`/cart/remove/${itemToDelete}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken'),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({})
+        })
+        .then(response => {
+            console.log('Response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Response data:', data);
+            if (data.success) {
+                // Удаляем элемент из DOM
+                const itemElement = document.querySelector(`[data-item-id="${itemToDelete}"]`);
+                if (itemElement) {
+                    itemElement.remove();
+                }
+                showMessage(data.message, 'success');
+
+                // Проверяем, есть ли еще товары
+                if (document.querySelectorAll('.cart-item').length === 0) {
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    // Обновляем итоговые суммы
+                    setTimeout(() => location.reload(), 500);
+                }
+            } else {
+                showMessage(data.message || 'Произошла ошибка', 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Fetch error:', error);
+            showMessage('Произошла ошибка при удалении товара: ' + error.message, 'error');
+        });
+
+        // Закрываем модальное окно
+        const modal = bootstrap.Modal.getInstance(document.getElementById('confirmModal'));
+        if (modal) {
+            modal.hide();
+        }
+        itemToDelete = null;
+    }
+});
+
+function updateCartDisplay() {
+    // Здесь можно добавить логику для обновления отображения корзины
+    // Например, пересчет общей суммы
+    location.reload(); // Простое решение - перезагрузка страницы
+}
+
+function showMessage(message, type) {
+    // Создаем уведомление
+    const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+    const alertHTML = `
+        <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+            ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+    
+    // Добавляем уведомление в начало контейнера
+    const container = document.querySelector('.container');
+    container.insertAdjacentHTML('afterbegin', alertHTML);
+    
+    // Автоматически скрываем через 3 секунды
+    setTimeout(() => {
+        const alert = container.querySelector('.alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 3000);
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Обработчик для input полей количества
+document.querySelectorAll('.quantity-input').forEach(input => {
+    input.addEventListener('change', function() {
+        const itemId = this.closest('.cart-item').dataset.itemId;
+        const newQuantity = parseInt(this.value);
+        updateQuantity(itemId, newQuantity);
+    });
+});
+</script>
+{% endblock %}

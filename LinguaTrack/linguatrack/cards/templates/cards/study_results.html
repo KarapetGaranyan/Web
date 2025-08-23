@@ -1,0 +1,232 @@
+{% extends 'cards/base.html' %}
+
+{% block title %}Результаты изучения - LinguaTrack{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <h1>📊 Подробная статистика</h1>
+
+        <!-- Статистика за неделю -->
+        <div class="card mb-4">
+            <div class="card-header bg-gradient bg-primary text-white">
+                <h5 class="mb-0">📈 Статистика за неделю</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h3 class="text-primary">{{ week_stats.total }}</h3>
+                            <small>Всего сессий</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h3 class="text-success">{{ week_stats.correct }}</h3>
+                            <small>Правильных ответов</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="border-end">
+                            <h3 class="text-info">{{ week_stats.cards_studied }}</h3>
+                            <small>Уникальных карточек</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <h3 class="text-warning">{{ due_cards }}</h3>
+                        <small>К повторению</small>
+                    </div>
+                </div>
+
+                {% if week_stats.total > 0 %}
+                    <div class="mt-4">
+                        <div class="d-flex justify-content-between mb-1">
+                            <span>Точность за неделю:</span>
+                            <span><strong>{% widthratio week_stats.correct week_stats.total 100 %}%</strong></span>
+                        </div>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-gradient bg-success"
+                                 style="width: {% widthratio week_stats.correct week_stats.total 100 %}%">
+                                {% widthratio week_stats.correct week_stats.total 100 %}%
+                            </div>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Последние сессии -->
+        {% if recent_sessions %}
+            <div class="card">
+                <div class="card-header">
+                    <h5>📝 Последние сессии изучения</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Слово</th>
+                                    <th>Ваш ответ</th>
+                                    <th>Результат</th>
+                                    <th>Качество</th>
+                                    <th>Время</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for session in recent_sessions %}
+                                    <tr>
+                                        <td>
+                                            <strong>{{ session.card.word }}</strong><br>
+                                            <small class="text-muted">{{ session.card.translation }}</small>
+                                        </td>
+                                        <td>
+                                            {% if session.user_answer %}
+                                                {{ session.user_answer|truncatechars:30 }}
+                                            {% else %}
+                                                <span class="text-muted">-</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <span class="badge
+                                                {% if session.result == 'perfect' %}bg-success
+                                                {% elif session.result == 'correct' %}bg-info
+                                                {% elif session.result == 'hard' %}bg-warning
+                                                {% else %}bg-danger{% endif %}">
+                                                {{ session.get_result_display }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                {% for i in "12345" %}
+                                                    <span class="
+                                                        {% if session.quality_score >= i|add:0 %}text-warning
+                                                        {% else %}text-muted{% endif %}">★</span>
+                                                {% endfor %}
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <small>{{ session.created_at|date:"d.m H:i" }}</small>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <!-- Боковая панель -->
+    <div class="col-md-4">
+        <!-- Telegram статистика -->
+        {% if user.telegram_profile %}
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">🤖 Telegram активность</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Статус:</span>
+                            <span class="badge bg-success">Подключен ✅</span>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between">
+                            <span>Уведомления:</span>
+                            <span class="
+                                {% if user.telegram_profile.notifications_enabled %}text-success
+                                {% else %}text-danger{% endif %}">
+                                {% if user.telegram_profile.notifications_enabled %}✅{% else %}❌{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <small class="text-muted">
+                        Последняя активность:<br>
+                        {{ user.telegram_profile.last_interaction|date:"d.m.Y H:i" }}
+                    </small>
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Общая статистика -->
+        <div class="card mb-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0">🎯 Общие достижения</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Всего карточек:</span>
+                        <span class="fw-bold">{{ stats.total_cards }}</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Выучено:</span>
+                        <span class="fw-bold text-success">{{ stats.learned_cards }}</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Общая точность:</span>
+                        <span class="fw-bold">{{ stats.accuracy_rate }}%</span>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <div class="d-flex justify-content-between">
+                        <span>Время изучения:</span>
+                        <span class="fw-bold">{{ stats.study_time_minutes }} мин</span>
+                    </div>
+                </div>
+
+                <!-- Streak -->
+                {% if stats.streak_days > 0 %}
+                    <div class="alert alert-success py-2">
+                        🔥 Streak: {{ stats.streak_days }} дней подряд!
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Рекомендации -->
+        <div class="card">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0">💡 Рекомендации</h5>
+            </div>
+            <div class="card-body">
+                {% if due_cards > 0 %}
+                    <div class="alert alert-info py-2 mb-2">
+                        📚 Повтори {{ due_cards }} карточек сегодня
+                    </div>
+                {% endif %}
+
+                {% if stats.accuracy_rate < 70 %}
+                    <div class="alert alert-warning py-2 mb-2">
+                        🎯 Улучши точность - больше повторяй сложные слова
+                    </div>
+                {% endif %}
+
+                {% if stats.current_week_studied < stats.weekly_goal %}
+                    <div class="alert alert-primary py-2 mb-2">
+                        🏃‍♂️ До цели недели: {{ cards_left_to_goal }} карточек
+                    </div>
+                {% endif %}
+
+                <div class="d-grid gap-2">
+                    {% if due_cards > 0 %}
+                        <a href="{% url 'cards:smart_study' %}" class="btn btn-primary btn-sm">
+                            🧠 Умное изучение
+                        </a>
+                    {% endif %}
+                    <a href="{% url 'cards:card_create' %}" class="btn btn-success btn-sm">
+                        ➕ Новая карточка
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

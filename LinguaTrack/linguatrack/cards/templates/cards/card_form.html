@@ -1,0 +1,66 @@
+{% extends 'cards/base.html' %}
+
+{% block title %}{{ title }} - LinguaTrack{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h2>{{ title }}</h2>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.word.id_for_label }}" class="form-label">
+                            {{ form.word.label }}
+                        </label>
+                        {{ form.word }}
+                        {% if form.word.errors %}
+                            <div class="text-danger">{{ form.word.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.translation.id_for_label }}" class="form-label">
+                            {{ form.translation.label }}
+                        </label>
+                        {{ form.translation }}
+                        {% if form.translation.errors %}
+                            <div class="text-danger">{{ form.translation.errors }}</div>
+                        {% endif %}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.difficulty.id_for_label }}" class="form-label">
+                            {{ form.difficulty.label }}
+                        </label>
+                        {{ form.difficulty }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.example.id_for_label }}" class="form-label">
+                            {{ form.example.label }}
+                        </label>
+                        {{ form.example }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.note.id_for_label }}" class="form-label">
+                            {{ form.note.label }}
+                        </label>
+                        {{ form.note }}
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'cards:card_list' %}" class="btn btn-secondary">Отмена</a>
+                        <button type="submit" class="btn btn-success">Сохранить</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

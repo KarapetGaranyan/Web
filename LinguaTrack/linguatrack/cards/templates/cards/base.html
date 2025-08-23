@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LinguaTrack{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <style>
+        .card-hover:hover {
+            transform: translateY(-2px);
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .badge-difficulty {
+            font-size: 0.8rem;
+        }
+        .study-card {
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+        .telegram-integration {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .progress-circle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: conic-gradient(#28a745 0deg, #28a745 var(--progress), #e9ecef var(--progress), #e9ecef 360deg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body class="bg-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{% url 'cards:card_list' %}">
+                📚 LinguaTrack
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <div class="navbar-nav ms-auto">
+                    {% if user.is_authenticated %}
+                        <a class="nav-link" href="{% url 'cards:card_list' %}">📚 Карточки</a>
+                        <a class="nav-link" href="{% url 'cards:card_create' %}">➕ Добавить</a>
+                        <a class="nav-link" href="{% url 'cards:smart_study' %}">🧠 Изучать</a>
+                        <a class="nav-link" href="{% url 'cards:study_results' %}">📊 Результаты</a>
+                        <a class="nav-link" href="{% url 'telegram_bot:link_telegram' %}">🤖 Telegram</a>
+                        <a class="nav-link" href="/admin/logout/">🚪 Выйти</a>
+                    {% else %}
+                        <a class="nav-link" href="/admin/login/">🔑 Войти</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mt-4">
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <footer class="bg-dark text-light text-center py-3 mt-5">
+        <div class="container">
+            <small>&copy; 2024 LinguaTrack - Изучение языков с умом |
+                <a href="{% url 'telegram_bot:bot_info' %}" class="text-light">🤖 Telegram бот</a>
+            </small>
+        </div>
+    </footer>
+</body>
+</html>

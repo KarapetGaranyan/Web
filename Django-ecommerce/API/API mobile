@@ -1,0 +1,328 @@
+# Инструкция по API с правильными URL
+
+## Важно! Структура URL согласно вашему urls.py
+
+Согласно файлу `ecommerce/urls.py`, API endpoints доступны по следующим путям:
+- **Аутентификация:** `/api/auth/` (с префиксом)
+- **API магазина:** `/` (БЕЗ префикса api)
+
+## 1. Регистрация пользователя
+
+### Запрос в Postman
+```
+POST http://127.0.0.1:8000/api/auth/users/
+Headers: Content-Type: application/json
+Body (JSON):
+{
+  "username": "ivan_petrov",
+  "email": "ivan@example.com",
+  "password": "mySecurePassword123"
+}
+```
+
+### Ответ (успех)
+```json
+{
+  "id": 5,
+  "username": "ivan_petrov",
+  "email": "ivan@example.com"
+}
+```
+
+## 2. Получение токена авторизации
+
+### Запрос в Postman
+```
+POST http://127.0.0.1:8000/api/auth/jwt/create/
+Headers: Content-Type: application/json
+Body (JSON):
+{
+  "username": "ivan_petrov",
+  "password": "mySecurePassword123"
+}
+```
+
+### Ответ (успех)
+```json
+{
+  "access": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNjk...",
+  "refresh": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ0b2tlbl90eXBlIjoicmVmcmVzaCIsImV4cCI6MTY5..."
+}
+```
+
+## 3. Просмотр товаров и категорий
+
+### Список категорий
+```
+GET http://127.0.0.1:8000/categories/
+```
+
+### Список товаров
+```
+GET http://127.0.0.1:8000/products/
+```
+
+### Детали товара
+```
+GET http://127.0.0.1:8000/products/{slug}/
+```
+
+## 4. Добавление товара в корзину
+
+### Запрос в Postman
+```
+POST http://127.0.0.1:8000/cart/add/
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+Body (JSON):
+{
+  "product_id": 1,
+  "quantity": 1
+}
+```
+
+### Ответ (успех)
+```json
+{
+  "message": "Товар добавлен в корзину"
+}
+```
+
+## 5. Просмотр корзины
+
+### Запрос в Postman
+```
+GET http://127.0.0.1:8000/cart/
+Headers:
+  Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+```
+
+### Ответ
+```json
+{
+  "id": 1,
+  "items": [
+    {
+      "id": 1,
+      "product": {
+        "id": 1,
+        "name": "iPhone 15 Pro",
+        "slug": "iphone-15-pro",
+        "short_description": "Флагманский смартфон Apple",
+        "category": {
+          "id": 1,
+          "name": "Электроника"
+        },
+        "price": "119999.00",
+        "old_price": "129999.00",
+        "discount_percentage": 8,
+        "is_in_stock": true,
+        "rating": 4.8,
+        "main_image": {
+          "image": "/media/products/iphone.jpg"
+        }
+      },
+      "quantity": 1,
+      "total_price": "119999.00"
+    }
+  ],
+  "total_price": "119999.00",
+  "total_items": 1,
+  "updated_at": "2025-06-22T10:30:00Z"
+}
+```
+
+## 6. Создание заказа
+
+### Запрос в Postman
+```
+POST http://127.0.0.1:8000/orders/create/
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+Body (JSON):
+{
+  "delivery_address": "ул. Абая, д. 150, кв. 25",
+  "delivery_city": "Алматы",
+  "delivery_postal_code": "050000",
+  "phone": "+7 777 123 45 67",
+  "email": "ivan@example.com",
+  "payment_method": "cash",
+  "notes": "Звонить за час до доставки"
+}
+```
+
+### Ответ (успех)
+```json
+{
+  "id": 7,
+  "order_number": "ORDER-2025-001234",
+  "status": "pending",
+  "delivery_address": "ул. Абая, д. 150, кв. 25",
+  "delivery_city": "Алматы",
+  "delivery_postal_code": "050000",
+  "phone": "+7 777 123 45 67",
+  "email": "ivan@example.com",
+  "subtotal": "119999.00",
+  "delivery_cost": "300.00",
+  "total": "120299.00",
+  "payment_method": "cash",
+  "is_paid": false,
+  "created_at": "2025-06-22T10:45:00Z",
+  "notes": "Звонить за час до доставки",
+  "items": [
+    {
+      "id": 1,
+      "product": {
+        "id": 1,
+        "name": "iPhone 15 Pro",
+        "price": "119999.00"
+      },
+      "quantity": 1,
+      "price": "119999.00",
+      "total_price": "119999.00"
+    }
+  ]
+}
+```
+
+## 7. Получение списка заказов
+
+### Запрос в Postman
+```
+GET http://127.0.0.1:8000/orders/
+Headers:
+  Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9...
+```
+
+### Ответ
+```json
+{
+  "count": 2,
+  "next": null,
+  "previous": null,
+  "results": [
+    {
+      "id": 7,
+      "order_number": "ORDER-2025-001234",
+      "status": "pending",
+      "total": "120299.00",
+      "created_at": "2025-06-22T10:45:00Z"
+    }
+  ]
+}
+```
+
+## Полный список API endpoints
+
+### Аутентификация (с префиксом /api/auth/)
+- Регистрация: `POST http://127.0.0.1:8000/api/auth/users/`
+- Получение токена: `POST http://127.0.0.1:8000/api/auth/jwt/create/`
+- Обновление токена: `POST http://127.0.0.1:8000/api/auth/jwt/refresh/`
+
+### Товары и категории (БЕЗ префикса /api/)
+- Список категорий: `GET http://127.0.0.1:8000/categories/`
+- Список товаров: `GET http://127.0.0.1:8000/products/`
+- Детали товара: `GET http://127.0.0.1:8000/products/{slug}/`
+
+### Корзина (БЕЗ префикса /api/)
+- Просмотр корзины: `GET http://127.0.0.1:8000/cart/`
+- Добавить товар: `POST http://127.0.0.1:8000/cart/add/`
+- Обновить количество: `PUT http://127.0.0.1:8000/cart/update/{item_id}/`
+- Удалить товар: `DELETE http://127.0.0.1:8000/cart/remove/{item_id}/`
+
+### Заказы (БЕЗ префикса /api/)
+- Список заказов: `GET http://127.0.0.1:8000/orders/`
+- Создать заказ: `POST http://127.0.0.1:8000/orders/create/`
+- Детали заказа: `GET http://127.0.0.1:8000/orders/{order_id}/`
+
+### Отзывы (БЕЗ префикса /api/)
+- Список отзывов: `GET http://127.0.0.1:8000/products/{product_id}/reviews/`
+- Добавить отзыв: `POST http://127.0.0.1:8000/products/{product_id}/reviews/`
+
+### Профиль пользователя
+- Получить профиль: `GET http://127.0.0.1:8000/api/accounts/profile/`
+- Обновить профиль: `PUT http://127.0.0.1:8000/api/accounts/profile/update/`
+
+## Пошаговая инструкция для создания заказа
+
+### Шаг 1: Регистрация пользователя
+```
+POST http://127.0.0.1:8000/api/auth/users/
+Headers: Content-Type: application/json
+Body: {"username": "ivan_petrov", "email": "ivan@example.com", "password": "mySecurePassword123"}
+```
+
+### Шаг 2: Получение токена
+```
+POST http://127.0.0.1:8000/api/auth/jwt/create/
+Headers: Content-Type: application/json
+Body: {"username": "ivan_petrov", "password": "mySecurePassword123"}
+```
+**Скопируйте значение "access" из ответа!**
+
+### Шаг 3: Добавление товара в корзину
+```
+POST http://127.0.0.1:8000/cart/add/
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer ваш_токен_здесь
+Body: {"product_id": 1, "quantity": 1}
+```
+
+### Шаг 4: Проверка корзины
+```
+GET http://127.0.0.1:8000/cart/
+Headers: Authorization: Bearer ваш_токен_здесь
+```
+
+### Шаг 5: Создание заказа
+```
+POST http://127.0.0.1:8000/orders/create/
+Headers:
+  Content-Type: application/json
+  Authorization: Bearer ваш_токен_здесь
+Body: {
+  "delivery_address": "ул. Абая, д. 150, кв. 25",
+  "delivery_city": "Алматы",
+  "delivery_postal_code": "050000",
+  "phone": "+7 777 123 45 67",
+  "email": "ivan@example.com",
+  "payment_method": "cash",
+  "notes": "Звонить за час до доставки"
+}
+```
+
+## Важные примечания
+
+1. **Токены JWT живут 60 минут** - после этого нужно получать новый токен
+2. **Authorization заголовок:** всегда `Bearer токен` (с пробелом после Bearer)
+3. **Только аутентификация использует префикс /api/auth/**
+4. **Все остальные API endpoints БЕЗ префикса /api/**
+5. **После создания заказа корзина автоматически очищается**
+6. **Остатки товаров автоматически уменьшаются при создании заказа**
+
+## Возможные ошибки
+
+### 401 Unauthorized
+- Отсутствует заголовок Authorization
+- Неправильный формат токена (должен быть `Bearer токен`)
+- Токен истек (получите новый через /api/auth/jwt/create/)
+
+### 400 Bad Request
+- Неправильный JSON в Body
+- Отсутствуют обязательные поля
+- Недостаточно товара на складе
+
+### 404 Not Found
+- Неправильный URL
+- Товар с указанным ID не существует
+
+### Пример ошибки "Корзина пуста"
+```json
+{
+  "error": "Корзина пуста"
+}
+```
+**Решение:** Сначала добавьте товары в корзину через `/cart/add/`

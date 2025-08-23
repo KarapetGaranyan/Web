@@ -1,0 +1,82 @@
+{% extends 'cards/base.html' %}
+
+{% block title %}Изучение - LinguaTrack{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <!-- Прогресс -->
+        <div class="mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2>🎯 Изучение карточек</h2>
+                <span class="badge bg-info">{{ studied_count }}/{{ total_count }}</span>
+            </div>
+            <div class="progress">
+                <div class="progress-bar" role="progressbar" 
+                     style="width: {% widthratio studied_count total_count 100 %}%">
+                </div>
+            </div>
+        </div>
+
+        <!-- Карточка -->
+        <div class="card study-card mb-4">
+            <div class="card-body text-center">
+                <div class="mb-3">
+                    <span class="badge bg-secondary">{{ card.get_difficulty_display }}</span>
+                </div>
+                
+                <h1 class="display-4 mb-4">{{ card.word }}</h1>
+                
+                {% if card.example and not show_result %}
+                    <p class="text-muted">
+                        <em>{{ card.example }}</em>
+                    </p>
+                {% endif %}
+                
+                {% if show_result %}
+                    <!-- Показываем результат -->
+                    <div class="alert {% if is_correct %}alert-success{% else %}alert-danger{% endif %}">
+                        <h4>
+                            {% if is_correct %}
+                                ✅ Правильно!
+                            {% else %}
+                                ❌ Неправильно
+                            {% endif %}
+                        </h4>
+                        <p><strong>Правильный ответ:</strong> {{ card.translation }}</p>
+                        <p><strong>Ваш ответ:</strong> {{ user_answer }}</p>
+                    </div>
+                    
+                    {% if card.example %}
+                        <div class="mt-3">
+                            <strong>Пример:</strong>
+                            <p class="text-muted">{{ card.example }}</p>
+                        </div>
+                    {% endif %}
+                    
+                    <a href="{% url 'cards:next_card' %}" class="btn btn-primary btn-lg">
+                        Следующая карточка →
+                    </a>
+                {% else %}
+                    <!-- Форма ответа -->
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="mb-3">
+                            {{ form.answer }}
+                        </div>
+                        <button type="submit" class="btn btn-success btn-lg">
+                            Проверить
+                        </button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="text-center">
+            <a href="{% url 'cards:card_list' %}" class="btn btn-outline-secondary">
+                ⬅️ Завершить изучение
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

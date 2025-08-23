@@ -1,0 +1,498 @@
+{% extends 'shop/base.html' %}
+
+{% block title %}{{ product.name }} - Интернет-магазин{% endblock %}
+
+{% block extra_css %}
+<style>
+    .product-gallery {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+    
+    .product-main-image {
+        width: 100%;
+        height: 400px;
+        object-fit: cover;
+        border-radius: 10px;
+        margin-bottom: 15px;
+    }
+    
+    .product-thumbnail {
+        width: 80px;
+        height: 80px;
+        object-fit: cover;
+        border-radius: 8px;
+        cursor: pointer;
+        margin-right: 10px;
+        border: 2px solid transparent;
+        transition: border-color 0.3s ease;
+    }
+    
+    .product-thumbnail:hover,
+    .product-thumbnail.active {
+        border-color: #007bff;
+    }
+    
+    .product-info {
+        background: #fff;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        padding: 30px;
+        margin-bottom: 30px;
+    }
+    
+    .product-price {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #007bff;
+        margin-bottom: 10px;
+    }
+    
+    .product-old-price {
+        font-size: 1.2rem;
+        text-decoration: line-through;
+        color: #6c757d;
+        margin-right: 10px;
+    }
+    
+    .discount-badge {
+        background: #dc3545;
+        color: white;
+        padding: 5px 15px;
+        border-radius: 20px;
+        font-size: 0.9rem;
+        font-weight: bold;
+    }
+    
+    .rating-stars {
+        color: #ffc107;
+        font-size: 1.2rem;
+        margin-bottom: 20px;
+    }
+    
+    .product-features {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .quantity-controls {
+        display: flex;
+        align-items: center;
+        margin-bottom: 20px;
+    }
+    
+    .quantity-btn {
+        width: 40px;
+        height: 40px;
+        border: 1px solid #dee2e6;
+        background: white;
+        border-radius: 5px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 1.2rem;
+    }
+    
+    .quantity-btn:hover {
+        background: #f8f9fa;
+    }
+    
+    .quantity-input {
+        width: 80px;
+        text-align: center;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 8px;
+        margin: 0 10px;
+    }
+    
+    .review-card {
+        background: #fff;
+        border-radius: 10px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .related-product {
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.3s ease;
+    }
+    
+    .related-product:hover {
+        transform: translateY(-5px);
+        color: inherit;
+        text-decoration: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Навигация -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}">Главная</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'product_list' %}">Каталог</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'category_detail' product.category.slug %}">{{ product.category.name }}</a></li>
+            <li class="breadcrumb-item active">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    <div class="row">
+        <!-- Галерея товара -->
+        <div class="col-lg-6">
+            <div class="product-gallery">
+                {% if product.images.exists %}
+                    <img src="{{ product.images.first.image.url }}" 
+                         class="product-main-image" alt="{{ product.name }}" id="mainImage">
+                    
+                    {% if product.images.count > 1 %}
+                        <div class="d-flex flex-wrap">
+                            {% for image in product.images.all %}
+                                <img src="{{ image.image.url }}" 
+                                     class="product-thumbnail {% if forloop.first %}active{% endif %}" 
+                                     alt="{{ product.name }}"
+                                     onclick="changeMainImage('{{ image.image.url }}', this)">
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% else %}
+                    <div class="product-main-image bg-light d-flex align-items-center justify-content-center">
+                        <i class="fas fa-image fa-5x text-muted"></i>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Информация о товаре -->
+        <div class="col-lg-6">
+            <div class="product-info">
+                <!-- Заголовок -->
+                <h1 class="mb-3">{{ product.name }}</h1>
+                
+                <!-- Рейтинг -->
+                <div class="rating-stars mb-3">
+                    {% for i in "12345" %}
+                        {% if forloop.counter <= product.rating %}
+                            <i class="fas fa-star"></i>
+                        {% else %}
+                            <i class="far fa-star"></i>
+                        {% endif %}
+                    {% endfor %}
+                    <span class="text-muted ms-2">({{ reviews_count }} отзыв{{ reviews_count|pluralize:"ов" }})</span>
+                </div>
+
+                <!-- Цена -->
+                <div class="mb-4">
+                    {% if product.old_price %}
+                        <span class="product-old-price">{{ product.old_price }} ₽</span>
+                        <span class="discount-badge">-{{ product.discount_percentage }}%</span>
+                    {% endif %}
+                    <div class="product-price">{{ product.price }} ₽</div>
+                </div>
+
+                <!-- Краткое описание -->
+                <p class="lead mb-4">{{ product.short_description }}</p>
+
+                <!-- Наличие -->
+                <div class="mb-4">
+                    {% if product.is_in_stock %}
+                        <span class="badge bg-success fs-6">✓ В наличии ({{ product.stock }} шт.)</span>
+                    {% else %}
+                        <span class="badge bg-danger fs-6">✗ Нет в наличии</span>
+                    {% endif %}
+                </div>
+
+                <!-- Характеристики -->
+                <div class="product-features">
+                    <h6>Основные характеристики:</h6>
+                    <div class="row">
+                        <div class="col-6">
+                            <strong>Артикул:</strong> {{ product.sku }}
+                        </div>
+                        <div class="col-6">
+                            <strong>Категория:</strong> {{ product.category.name }}
+                        </div>
+                        {% if product.weight %}
+                        <div class="col-6 mt-2">
+                            <strong>Вес:</strong> {{ product.weight }} кг
+                        </div>
+                        {% endif %}
+                        {% if product.dimensions %}
+                        <div class="col-6 mt-2">
+                            <strong>Размеры:</strong> {{ product.dimensions }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Количество и добавление в корзину -->
+                {% if user.is_authenticated %}
+                    <div class="quantity-controls">
+                        <label class="me-3"><strong>Количество:</strong></label>
+                        <button class="quantity-btn" onclick="changeQuantity(-1)">-</button>
+                        <input type="number" class="quantity-input" id="quantityInput" 
+                               value="1" min="1" max="{{ product.stock }}">
+                        <button class="quantity-btn" onclick="changeQuantity(1)">+</button>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-primary btn-lg" id="addToCartBtn" 
+                                onclick="addToCart({{ product.id }})"
+                                {% if not product.is_in_stock %}disabled{% endif %}>
+                            <i class="fas fa-shopping-cart"></i> Добавить в корзину
+                        </button>
+                        <button class="btn btn-outline-secondary">
+                            <i class="fas fa-heart"></i> В избранное
+                        </button>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i>
+                        <a href="/login/" class="alert-link">Войдите в систему</a>, чтобы добавить товар в корзину
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Описание товара -->
+    <div class="row mt-5">
+        <div class="col-12">
+            <div class="product-info">
+                <h3 class="mb-4">Описание товара</h3>
+                <div class="product-description">
+                    {{ product.description|linebreaks }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Отзывы -->
+    {% if reviews %}
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="mb-4">Отзывы покупателей</h3>
+            {% for review in reviews|slice:":5" %}
+                <div class="review-card">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <h6 class="mb-1">{{ review.user.get_full_name|default:review.user.username }}</h6>
+                            <div class="rating-stars">
+                                {% for i in "12345" %}
+                                    {% if forloop.counter <= review.rating %}
+                                        <i class="fas fa-star"></i>
+                                    {% else %}
+                                        <i class="far fa-star"></i>
+                                    {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <small class="text-muted">{{ review.created_at|date:"d.m.Y" }}</small>
+                    </div>
+                    {% if review.title %}
+                        <h6>{{ review.title }}</h6>
+                    {% endif %}
+                    <p class="mb-0">{{ review.comment }}</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Похожие товары -->
+    {% if related_products %}
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3 class="mb-4">Похожие товары</h3>
+            <div class="row">
+                {% for related in related_products %}
+                    <div class="col-lg-3 col-md-6 mb-4">
+                        <a href="{% url 'product_detail' related.slug %}" class="related-product">
+                            <div class="card h-100 border-0 shadow-sm">
+                                {% if related.images.first %}
+                                    <img src="{{ related.images.first.image.url }}" 
+                                         class="card-img-top" alt="{{ related.name }}"
+                                         style="height: 200px; object-fit: cover;">
+                                {% else %}
+                                    <div class="card-img-top bg-light d-flex align-items-center justify-content-center" 
+                                         style="height: 200px;">
+                                        <i class="fas fa-image fa-2x text-muted"></i>
+                                    </div>
+                                {% endif %}
+                                <div class="card-body">
+                                    <h6 class="card-title">{{ related.name }}</h6>
+                                    <div class="text-primary fw-bold">{{ related.price }} ₽</div>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function changeMainImage(imageSrc, thumbnail) {
+    document.getElementById('mainImage').src = imageSrc;
+    
+    // Убираем активный класс со всех миниатюр
+    document.querySelectorAll('.product-thumbnail').forEach(thumb => {
+        thumb.classList.remove('active');
+    });
+    
+    // Добавляем активный класс к выбранной миниатюре
+    thumbnail.classList.add('active');
+}
+
+function changeQuantity(delta) {
+    const input = document.getElementById('quantityInput');
+    const currentValue = parseInt(input.value);
+    const newValue = currentValue + delta;
+    const maxValue = parseInt(input.max);
+    
+    if (newValue >= 1 && newValue <= maxValue) {
+        input.value = newValue;
+    }
+}
+
+function addToCart(productId) {
+    const quantity = parseInt(document.getElementById('quantityInput').value);
+    const button = document.getElementById('addToCartBtn');
+    const originalText = button.innerHTML;
+    
+    // Показываем индикатор загрузки
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Добавляем...';
+    button.disabled = true;
+    
+    // Отправляем AJAX запрос
+    fetch('/cart/add/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            product_id: productId,
+            quantity: quantity
+        })
+    })
+    .then(response => {
+        console.log('Response status:', response.status);
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        console.log('Response data:', data);
+        if (data.success) {
+            // Успешно добавлено
+            button.innerHTML = '<i class="fas fa-check"></i> Добавлено в корзину!';
+            button.classList.remove('btn-primary');
+            button.classList.add('btn-success');
+
+            // Обновляем счетчик корзины в навигации
+            if (window.updateNavCartBadge) {
+                window.updateNavCartBadge();
+            }
+
+            // Показываем уведомление
+            showNotification(data.message || 'Товар добавлен в корзину', 'success');
+
+            // Возвращаем кнопку в исходное состояние через 3 секунды
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-primary');
+                button.disabled = false;
+            }, 3000);
+        } else {
+            // Ошибка от сервера
+            button.innerHTML = originalText;
+            button.disabled = false;
+            showNotification(data.message || 'Произошла ошибка', 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Fetch error:', error);
+        button.innerHTML = originalText;
+        button.disabled = false;
+        showNotification('Произошла ошибка при добавлении товара: ' + error.message, 'error');
+    });
+}
+
+// Функция для показа уведомлений
+function showNotification(message, type = 'info') {
+    const alertClass = {
+        'success': 'alert-success',
+        'error': 'alert-danger',
+        'warning': 'alert-warning',
+        'info': 'alert-info'
+    }[type] || 'alert-info';
+
+    const iconClass = {
+        'success': 'fa-check-circle',
+        'error': 'fa-exclamation-triangle',
+        'warning': 'fa-exclamation-circle',
+        'info': 'fa-info-circle'
+    }[type] || 'fa-info-circle';
+
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed`;
+    notification.style.cssText = 'top: 80px; right: 20px; z-index: 1060; min-width: 300px; max-width: 400px;';
+    notification.innerHTML = `
+        <i class="fas ${iconClass}"></i> ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+
+    document.body.appendChild(notification);
+
+    // Автоматически удаляем через 4 секунды
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.remove();
+        }
+    }, 4000);
+}
+
+// Функция получения CSRF токена
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+// Обработчик изменения количества
+document.getElementById('quantityInput').addEventListener('change', function() {
+    const value = parseInt(this.value);
+    const max = parseInt(this.max);
+    
+    if (value < 1) {
+        this.value = 1;
+    } else if (value > max) {
+        this.value = max;
+    }
+});
+</script>
+{% endblock %}

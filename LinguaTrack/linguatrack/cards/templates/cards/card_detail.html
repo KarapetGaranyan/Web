@@ -1,0 +1,162 @@
+{% extends 'cards/base.html' %}
+
+{% block title %}{{ card.word }} - LinguaTrack{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2 class="mb-0">{{ card.word }}</h2>
+                <div>
+                    <span class="badge bg-secondary">{{ card.get_difficulty_display }}</span>
+                    {% if card.is_learned %}
+                        <span class="badge bg-success">Выучено ✓</span>
+                    {% elif card.is_due %}
+                        <span class="badge bg-warning">К повторению ⏰</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="card-body">
+                <h4 class="text-primary mb-3">{{ card.translation }}</h4>
+
+                <!-- Аудио -->
+                <div class="mb-3">
+                    {% if has_audio %}
+                        <button onclick="playAudio({{ card.pk }})" class="btn btn-outline-primary">
+                            🔊 Озвучить слово
+                        </button>
+                        <audio id="audio-{{ card.pk }}" preload="none">
+                            <source src="{% url 'cards:play_audio' card.pk %}" type="audio/mpeg">
+                        </audio>
+                    {% else %}
+                        <a href="{% url 'cards:generate_audio' card.pk %}" class="btn btn-outline-secondary">
+                            🎵 Генерировать аудио
+                        </a>
+                    {% endif %}
+                </div>
+
+                {% if card.example %}
+                    <div class="mb-3">
+                        <strong>Пример использования:</strong>
+                        <p class="text-muted">{{ card.example }}</p>
+                    </div>
+                {% endif %}
+
+                {% if card.note %}
+                    <div class="mb-3">
+                        <strong>Примечание:</strong>
+                        <p class="text-muted">{{ card.note }}</p>
+                    </div>
+                {% endif %}
+
+                <!-- Статистика изучения -->
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="border rounded p-3">
+                            <div class="d-flex justify-content-between">
+                                <span>Изучена:</span>
+                                <span class="fw-bold">{{ card.times_studied }} раз</span>
+                            </div>
+                            <div class="d-flex justify-content-between">
+                                <span>Точность:</span>
+                                <span class="fw-bold text-success">{{ card.accuracy_rate }}%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if schedule %}
+                        <div class="col-md-6">
+                            <div class="border rounded p-3">
+                                <div class="d-flex justify-content-between">
+                                    <span>Повторений:</span>
+                                    <span class="fw-bold">{{ schedule.repetitions }}</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Интервал:</span>
+                                    <span class="fw-bold">{{ schedule.interval }} дн.</span>
+                                </div>
+                                <div class="d-flex justify-content-between">
+                                    <span>Следующее:</span>
+                                    <span class="{% if is_due %}text-warning fw-bold{% endif %}">
+                                        {% if is_due %}
+                                            Сейчас
+                                        {% else %}
+                                            {{ next_review|date:"d.m H:i" }}
+                                        {% endif %}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="row text-muted">
+                    <div class="col-sm-6">
+                        <small>Создано: {{ card.created_at|date:"d.m.Y H:i" }}</small>
+                    </div>
+                    <div class="col-sm-6">
+                        <small>Изменено: {{ card.updated_at|date:"d.m.Y H:i" }}</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer">
+                <a href="{% url 'cards:card_edit' card.pk %}" class="btn btn-warning">
+                    ✏️ Редактировать
+                </a>
+                <a href="{% url 'cards:card_delete' card.pk %}" class="btn btn-danger">
+                    🗑️ Удалить
+                </a>
+                <a href="{% url 'cards:card_list' %}" class="btn btn-secondary">
+                    ⬅️ К списку
+                </a>
+                {% if is_due %}
+                    <a href="{% url 'cards:smart_study' %}" class="btn btn-primary">
+                        🧠 Изучать
+                    </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <!-- История изучения -->
+        {% if recent_sessions %}
+            <div class="card">
+                <div class="card-header">
+                    <h5>📈 История изучения</h5>
+                </div>
+                <div class="card-body">
+                    {% for session in recent_sessions %}
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <div>
+                                <span class="badge
+                                    {% if session.result == 'perfect' %}bg-success
+                                    {% elif session.result == 'correct' %}bg-info
+                                    {% elif session.result == 'hard' %}bg-warning
+                                    {% else %}bg-danger{% endif %}">
+                                    {{ session.get_result_display }}
+                                </span>
+                                {% if session.user_answer %}
+                                    <small class="text-muted d-block">{{ session.user_answer }}</small>
+                                {% endif %}
+                            </div>
+                            <small class="text-muted">{{ session.created_at|date:"d.m H:i" }}</small>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+function playAudio(cardId) {
+    const audio = document.getElementById(`audio-${cardId}`);
+    if (audio) {
+        audio.play().catch(e => console.log('Ошибка воспроизведения:', e));
+    }
+}
+</script>
+{% endblock %}

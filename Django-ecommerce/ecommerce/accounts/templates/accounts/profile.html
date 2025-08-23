@@ -1,0 +1,288 @@
+{% extends 'shop/base.html' %}
+
+{% block title %}Профиль пользователя - Интернет-магазин{% endblock %}
+
+{% block extra_css %}
+<style>
+    .profile-card {
+        background: #fff;
+        border-radius: 15px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        padding: 30px;
+        margin-bottom: 30px;
+    }
+    
+    .profile-avatar {
+        width: 120px;
+        height: 120px;
+        border-radius: 50%;
+        object-fit: cover;
+        border: 5px solid #007bff;
+    }
+    
+    .profile-info {
+        background: #f8f9fa;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .info-label {
+        font-weight: bold;
+        color: #495057;
+        margin-bottom: 5px;
+    }
+    
+    .info-value {
+        color: #6c757d;
+        margin-bottom: 15px;
+    }
+    
+    .edit-btn {
+        position: absolute;
+        top: 20px;
+        right: 20px;
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 20px;
+    }
+    
+    .stats-number {
+        font-size: 2.5rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .stats-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="display-4">Мой профиль</h1>
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{% url 'home' %}">Главная</a></li>
+                    <li class="breadcrumb-item active">Профиль</li>
+                </ol>
+            </nav>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- Основная информация профиля -->
+        <div class="col-lg-8">
+            <div class="profile-card position-relative">
+                <button class="btn btn-outline-primary edit-btn" onclick="toggleEditMode()">
+                    <i class="fas fa-edit"></i> Редактировать
+                </button>
+                
+                <div class="row">
+                    <div class="col-md-3 text-center mb-4">
+                        {% if profile.avatar %}
+                            <img src="{{ profile.avatar.url }}" alt="Аватар" class="profile-avatar mb-3">
+                        {% else %}
+                            <div class="profile-avatar bg-secondary d-flex align-items-center justify-content-center mb-3">
+                                <i class="fas fa-user fa-3x text-white"></i>
+                            </div>
+                        {% endif %}
+                        <h4>{{ user.get_full_name|default:user.username }}</h4>
+                        <p class="text-muted">{{ user.email }}</p>
+                    </div>
+                    
+                    <div class="col-md-9">
+                        <!-- Форма редактирования (скрыта по умолчанию) -->
+                        <form method="POST" enctype="multipart/form-data" id="profileForm" style="display: none;">
+                            {% csrf_token %}
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Имя</label>
+                                        <input type="text" class="form-control" name="first_name" 
+                                               value="{{ user.first_name }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Фамилия</label>
+                                        <input type="text" class="form-control" name="last_name" 
+                                               value="{{ user.last_name }}">
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">Email</label>
+                                        <input type="email" class="form-control" name="email" 
+                                               value="{{ user.email }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Телефон</label>
+                                        <input type="text" class="form-control" name="phone" 
+                                               value="{{ profile.phone }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Город</label>
+                                        <input type="text" class="form-control" name="city" 
+                                               value="{{ profile.city }}">
+                                    </div>
+                                </div>
+                                <div class="col-12">
+                                    <div class="mb-3">
+                                        <label class="form-label">Адрес</label>
+                                        <textarea class="form-control" name="address" rows="2">{{ profile.address }}</textarea>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Почтовый индекс</label>
+                                        <input type="text" class="form-control" name="postal_code" 
+                                               value="{{ profile.postal_code }}">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Аватар</label>
+                                        <input type="file" class="form-control" name="avatar" accept="image/*">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-save"></i> Сохранить
+                                </button>
+                                <button type="button" class="btn btn-secondary" onclick="toggleEditMode()">
+                                    <i class="fas fa-times"></i> Отмена
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Информация профиля (показана по умолчанию) -->
+                        <div id="profileInfo">
+                            <div class="profile-info">
+                                <div class="info-label">Личная информация</div>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="info-label">Имя:</div>
+                                        <div class="info-value">{{ user.first_name|default:"Не указано" }}</div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="info-label">Фамилия:</div>
+                                        <div class="info-value">{{ user.last_name|default:"Не указано" }}</div>
+                                    </div>
+                                </div>
+                                <div class="info-label">Email:</div>
+                                <div class="info-value">{{ user.email }}</div>
+                                <div class="info-label">Телефон:</div>
+                                <div class="info-value">{{ profile.phone|default:"Не указан" }}</div>
+                            </div>
+
+                            <div class="profile-info">
+                                <div class="info-label">Адрес доставки</div>
+                                <div class="info-label">Город:</div>
+                                <div class="info-value">{{ profile.city|default:"Не указан" }}</div>
+                                <div class="info-label">Адрес:</div>
+                                <div class="info-value">{{ profile.address|default:"Не указан" }}</div>
+                                <div class="info-label">Почтовый индекс:</div>
+                                <div class="info-value">{{ profile.postal_code|default:"Не указан" }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Статистика и быстрые действия -->
+        <div class="col-lg-4">
+            <!-- Статистика -->
+            <div class="stats-card">
+                <div class="stats-number">{{ user.orders.count }}</div>
+                <div class="stats-label">Всего заказов</div>
+            </div>
+            
+            <div class="stats-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                <div class="stats-number">0</div>
+                <div class="stats-label">Доставлено</div>
+            </div>
+
+            <!-- Быстрые действия -->
+            <div class="profile-card">
+                <h5 class="mb-3">Быстрые действия</h5>
+                <div class="d-grid gap-2">
+                    <a href="{% url 'order_list' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-list"></i> Мои заказы
+                    </a>
+                    <a href="{% url 'cart' %}" class="btn btn-outline-success">
+                        <i class="fas fa-shopping-cart"></i> Корзина
+                    </a>
+                    <a href="{% url 'product_list' %}" class="btn btn-outline-info">
+                        <i class="fas fa-shopping-bag"></i> Каталог товаров
+                    </a>
+                </div>
+            </div>
+
+            <!-- Информация о пользователе -->
+            <div class="profile-card">
+                <h5 class="mb-3">Информация об аккаунте</h5>
+                <p><strong>Имя пользователя:</strong> {{ user.username }}</p>
+                <p><strong>Дата регистрации:</strong> {{ user.date_joined|date:"d.m.Y" }}</p>
+                <p><strong>Последний вход:</strong> {{ user.last_login|date:"d.m.Y H:i"|default:"Никогда" }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleEditMode() {
+    const form = document.getElementById('profileForm');
+    const info = document.getElementById('profileInfo');
+    
+    if (form.style.display === 'none') {
+        form.style.display = 'block';
+        info.style.display = 'none';
+    } else {
+        form.style.display = 'none';
+        info.style.display = 'block';
+    }
+}
+
+// Предпросмотр аватара
+document.querySelector('input[name="avatar"]').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const avatar = document.querySelector('.profile-avatar');
+            if (avatar.tagName === 'IMG') {
+                avatar.src = e.target.result;
+            } else {
+                // Заменяем div на img
+                const newImg = document.createElement('img');
+                newImg.src = e.target.result;
+                newImg.className = 'profile-avatar mb-3';
+                newImg.alt = 'Аватар';
+                avatar.parentNode.replaceChild(newImg, avatar);
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+});
+</script>
+{% endblock %}
