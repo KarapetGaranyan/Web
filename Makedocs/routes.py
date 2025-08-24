@@ -3,16 +3,20 @@ from werkzeug.utils import secure_filename
 import os
 import zipfile
 import tempfile
-import shutil
 import time
 import random
 from datetime import datetime
 
 from models import db, Client, Organization, ContractTemplate, TemplateFile
 from utils import (
-    normalize_url, clean_filename, process_docx_template_safe,
-    diagnose_document_placeholders, calculate_file_hash,
-    debug_file_contents, debug_template_processing
+    normalize_url, clean_filename,
+    should_include_template_name, create_simple_output_filename,
+    ensure_unique_filename,
+    enhanced_process_docx_template,
+    process_docx_template_safe,
+    create_output_filename_with_client_prefix,
+    preserve_original_filename_with_prefix,
+    smart_filename_generation
 )
 
 
@@ -214,21 +218,7 @@ def register_routes(app):
                 unique_filename = f"{timestamp}_{random_suffix}_{i:02d}_{filename}"
                 filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
 
-                print(f"📁 Сохранение файла #{i + 1}:")
-                print(f"   Оригинальное имя: {filename}")
-                print(f"   Уникальное имя: {unique_filename}")
-                print(f"   Путь сохранения: {filepath}")
-
                 file.save(filepath)
-
-                # Проверяем, что файл действительно сохранился
-                if os.path.exists(filepath):
-                    saved_size = os.path.getsize(filepath)
-                    saved_hash = calculate_file_hash(filepath)
-                    print(f"   ✅ Файл сохранен, размер: {saved_size} байт")
-                    print(f"   🔐 MD5: {saved_hash}")
-                else:
-                    print(f"   ❌ ОШИБКА: Файл не сохранился!")
 
                 # Создаем запись о файле
                 template_file = TemplateFile(
@@ -237,7 +227,6 @@ def register_routes(app):
                     original_filename=filename
                 )
                 db.session.add(template_file)
-                print(f"   📝 Запись в БД создана: ID шаблона {template.id}, файл {unique_filename}")
 
                 # Небольшая задержка для гарантии разных timestamp'ов
                 time.sleep(0.01)
@@ -262,7 +251,7 @@ def register_routes(app):
                 if os.path.exists(file_path):
                     os.remove(file_path)
 
-            # Удаляем из базы данных (файлы удалятся автоматически из-за cascade)
+            # Удаляем из базы данных (файлы удаляются автоматически из-за cascade)
             db.session.delete(template)
             db.session.commit()
             flash('Шаблон успешно удален!', 'success')
@@ -272,142 +261,6 @@ def register_routes(app):
             flash(f'Ошибка при удалении шаблона: {str(e)}', 'error')
 
         return redirect(url_for('templates'))
-
-    @app.route('/templates/test/<int:id>')
-    def test_template(id):
-        """Тестирование шаблона без генерации договора"""
-        template = ContractTemplate.query.get_or_404(id)
-
-        print(f"\n=== ТЕСТ ШАБЛОНА '{template.name}' ===")
-
-        result = {
-            'template_name': template.name,
-            'template_description': template.description,
-            'files_count': len(template.files),
-            'files': []
-        }
-
-        for template_file in template.files:
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], template_file.filename)
-
-            file_info = {
-                'original_filename': template_file.original_filename,
-                'system_filename': template_file.filename,
-                'exists': os.path.exists(file_path),
-                'size': 0,
-                'hash': '',
-                'placeholders': [],
-                'content_preview': '',
-                'error': None
-            }
-
-            if os.path.exists(file_path):
-                try:
-                    file_info['size'] = os.path.getsize(file_path)
-                    file_info['hash'] = calculate_file_hash(file_path)
-                    file_info['placeholders'] = diagnose_document_placeholders(file_path)
-                    file_info['content_preview'] = debug_file_contents(file_path)
-
-                    print(f"\n📄 Файл: {template_file.original_filename}")
-                    print(f"   Размер: {file_info['size']} байт")
-                    print(f"   MD5: {file_info['hash']}")
-                    print(f"   Плейсхолдеры: {len(file_info['placeholders'])}")
-                    print(f"   Содержимое: {file_info['content_preview'][:100]}...")
-
-                except Exception as e:
-                    file_info['error'] = str(e)
-                    print(f"   ❌ Ошибка анализа: {e}")
-            else:
-                file_info['error'] = 'Файл не найден'
-                print(f"   ❌ Файл не найден: {file_path}")
-
-            result['files'].append(file_info)
-
-        return jsonify(result)
-
-    @app.route('/templates/debug/<int:id>')
-    def debug_template_files(id):
-        """Отладочная функция для детального анализа файлов в шаблоне"""
-        template = ContractTemplate.query.get_or_404(id)
-
-        result = {
-            'template': {
-                'id': template.id,
-                'name': template.name,
-                'description': template.description,
-                'files_count': len(template.files)
-            },
-            'files': [],
-            'analysis': {
-                'duplicate_hashes': []
-            }
-        }
-
-        file_hashes = {}
-
-        for template_file in template.files:
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], template_file.filename)
-
-            file_info = {
-                'id': template_file.id,
-                'original_filename': template_file.original_filename,
-                'system_filename': template_file.filename,
-                'uploaded_at': template_file.uploaded_at.isoformat(),
-                'exists': os.path.exists(file_path),
-                'size': 0,
-                'hash': None,
-                'content_preview': None,
-                'placeholders': []
-            }
-
-            if os.path.exists(file_path):
-                try:
-                    file_info['size'] = os.path.getsize(file_path)
-                    file_info['hash'] = calculate_file_hash(file_path)
-                    file_info['content_preview'] = debug_file_contents(file_path, 300)
-                    file_info['placeholders'] = diagnose_document_placeholders(file_path)
-
-                    # Проверяем дубликаты
-                    if file_info['hash'] in file_hashes:
-                        result['analysis']['duplicate_hashes'].append({
-                            'hash': file_info['hash'],
-                            'files': [file_hashes[file_info['hash']], template_file.original_filename]
-                        })
-                    else:
-                        file_hashes[file_info['hash']] = template_file.original_filename
-
-                except Exception as e:
-                    file_info['error'] = str(e)
-
-            result['files'].append(file_info)
-
-        return jsonify(result)
-
-    @app.route('/templates/diagnose/<int:id>')
-    def diagnose_template(id):
-        """Диагностика шаблона"""
-        template = ContractTemplate.query.get_or_404(id)
-
-        result = {
-            'template_name': template.name,
-            'files': []
-        }
-
-        for template_file in template.files:
-            file_path = os.path.join(app.config['UPLOAD_FOLDER'], template_file.filename)
-            if os.path.exists(file_path):
-                placeholders = diagnose_document_placeholders(file_path)
-                result['files'].append({
-                    'filename': template_file.original_filename,
-                    'placeholders': placeholders
-                })
-            else:
-                result['files'].append({
-                    'filename': template_file.original_filename,
-                    'error': 'Файл не найден'
-                })
-
-        return jsonify(result)
 
     # ===== МАРШРУТЫ ДЛЯ ГЕНЕРАЦИИ ДОГОВОРОВ =====
 
@@ -431,9 +284,6 @@ def register_routes(app):
         client = Client.query.get_or_404(client_id)
         organization = Organization.query.get_or_404(organization_id)
         templates = ContractTemplate.query.filter(ContractTemplate.id.in_(template_ids)).all()
-
-        # Отладочная информация о шаблонах
-        debug_template_processing(templates, template_ids)
 
         # Подготовка данных для замены
         data = {
@@ -460,154 +310,102 @@ def register_routes(app):
             'Дата': datetime.now().strftime('%d.%m.%Y')
         }
 
-        # Отладочная информация
-        print("\n=== ГЕНЕРАЦИЯ ДОГОВОРОВ ===")
-        print(f"Клиент: {client.full_name}")
-        print(f"Организация: {organization.signatory_name}")
-        print(f"Шаблонов выбрано: {len(templates)}")
-        print(f"ID шаблонов: {template_ids}")
-        print("\nДанные для замены:")
-        for key, value in data.items():
-            print(f"  {{ {key} }} = '{value}'")
-        print()
-
         # Создание временной папки для файлов
         with tempfile.TemporaryDirectory() as temp_dir:
             generated_files = []
-            used_filenames = set()  # Множество для отслеживания уже использованных имен
-            base_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            used_filenames = set()
 
             # Подготавливаем очищенное имя клиента для архива
             client_short = client.short_name or client.full_name
             clean_client_name = clean_filename(client_short)
 
-            for template_idx, template in enumerate(templates):
-                print(f"\n🔄 Обработка шаблона #{template_idx + 1}: '{template.name}' (ID: {template.id})")
-                print(f"   Описание: {template.description or 'Не указано'}")
-                print(f"   Файлов в шаблоне: {len(template.files)}")
+            # Базовая временная метка для архива (одна для всех)
+            archive_timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 
+            for template_idx, template in enumerate(templates):
                 if not template.files:
-                    print(f"   ⚠️ ВНИМАНИЕ: В шаблоне '{template.name}' нет файлов!")
                     continue
 
                 for file_idx, template_file in enumerate(template.files):
                     template_path = os.path.join(app.config['UPLOAD_FOLDER'], template_file.filename)
 
-                    print(f"\n   📁 Файл #{file_idx + 1} в шаблоне:")
-                    print(f"      ID файла в БД: {template_file.id}")
-                    print(f"      Оригинальное имя: {template_file.original_filename}")
-                    print(f"      Системное имя: {template_file.filename}")
-                    print(f"      Путь к файлу: {template_path}")
-                    print(f"      Дата загрузки: {template_file.uploaded_at}")
-
                     if not os.path.exists(template_path):
-                        print(f"      ❌ ОШИБКА: Файл не найден!")
                         flash(f'Файл шаблона не найден: {template_file.original_filename}', 'error')
                         continue
 
-                    # Дополнительная проверка файла
-                    file_size = os.path.getsize(template_path)
-                    file_hash = calculate_file_hash(template_path)
-                    print(f"      📊 Размер исходного файла: {file_size} байт")
-                    print(f"      🔐 MD5 исходного файла: {file_hash}")
+                    # Сохраняем оригинальное имя файла
+                    output_filename = preserve_original_filename_with_prefix(
+                        original_filename=template_file.original_filename,
+                        client_name=clean_client_name,
+                        template_name=template.name,
+                        add_template=(len(templates) > 1)
+                    )
 
-                    # Проверяем содержимое файла
-                    try:
-                        doc_preview = debug_file_contents(template_path, 200)
-                        print(f"      📄 Предварительный просмотр: {doc_preview}")
-                    except Exception as e:
-                        print(f"      ⚠️ Ошибка чтения содержимого: {e}")
-
-                    # Формируем уникальное имя файла
-                    clean_original_name = clean_filename(template_file.original_filename)
-
-                    # Базовое имя файла
-                    base_filename = f"{clean_client_name}_{clean_original_name}_{base_timestamp}"
-                    output_filename = f"{base_filename}.docx"
-
-                    # Проверяем уникальность и добавляем номер если нужно
-                    counter = 1
-                    while output_filename in used_filenames:
-                        output_filename = f"{base_filename}_{counter:02d}.docx"
-                        counter += 1
-
-                    # Добавляем имя в множество использованных
-                    used_filenames.add(output_filename)
-                    output_path = os.path.join(temp_dir, output_filename)
-
-                    print(f"      📤 Выходной файл: {output_filename}")
+                    # Обеспечиваем уникальность
+                    final_filename = ensure_unique_filename(output_filename, used_filenames)
+                    used_filenames.add(final_filename)
+                    output_path = os.path.join(temp_dir, final_filename)
 
                     try:
-                        print(f"      🔄 Начало обработки...")
-
-                        # Используем безопасную версию обработки
+                        # Используем улучшенную версию обработки
                         process_docx_template_safe(template_path, output_path, data)
 
                         # Проверяем, что файл действительно создан
                         if os.path.exists(output_path):
-                            file_size = os.path.getsize(output_path)
-                            output_hash = calculate_file_hash(output_path)
                             generated_files.append(output_path)
-                            print(f"      ✅ Файл успешно создан! Размер: {file_size} байт")
-                            print(f"      🔐 MD5 выходного файла: {output_hash}")
-
-                            # Сравниваем хэши
-                            if output_hash == file_hash:
-                                print(f"      ⚠️ ВНИМАНИЕ: Выходной файл идентичен исходному (замены не произошло)")
-                            else:
-                                print(f"      ✅ Файл успешно обработан (хэш изменился)")
-
-                            # Проверяем содержимое выходного файла
-                            try:
-                                output_preview = debug_file_contents(output_path, 200)
-                                print(f"      📄 Содержимое выходного файла: {output_preview}")
-                            except Exception as e:
-                                print(f"      ⚠️ Ошибка чтения выходного файла: {e}")
                         else:
-                            print(f"      ❌ Файл не был создан!")
                             flash(f'Не удалось создать файл для {template_file.original_filename}', 'error')
 
                     except Exception as e:
-                        print(f"      💥 ОШИБКА при обработке: {str(e)}")
-                        print("      📋 Детали ошибки:")
-                        import traceback
-                        traceback.print_exc()
                         flash(
                             f'Ошибка при обработке файла {template_file.original_filename} из шаблона {template.name}: {str(e)}',
                             'error')
                         continue
 
-            print(f"\n📊 ИТОГИ ГЕНЕРАЦИИ:")
-            print(f"   Всего создано файлов: {len(generated_files)}")
-
             if generated_files:
-                print("   📋 Список созданных файлов:")
-                for i, file_path in enumerate(generated_files, 1):
-                    file_name = os.path.basename(file_path)
-                    file_size = os.path.getsize(file_path)
-                    print(f"      {i}. {file_name} ({file_size} байт)")
-
-                # Создание архива
-                archive_name = f"contracts_{clean_client_name}_{base_timestamp}.zip"
+                # Создание архива с базовой временной меткой
+                archive_name = f"contracts_{clean_client_name}_{archive_timestamp}.zip"
                 archive_path = os.path.join(app.config['OUTPUT_FOLDER'], archive_name)
 
-                print(f"\n📦 Создание архива: {archive_name}")
                 try:
                     with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
                         for file_path in generated_files:
                             file_name = os.path.basename(file_path)
                             zipf.write(file_path, file_name)
-                            print(f"      ✅ Добавлен в архив: {file_name}")
 
-                    archive_size = os.path.getsize(archive_path)
-                    print(f"📦 Архив создан успешно! Размер: {archive_size} байт")
                     return send_file(archive_path, as_attachment=True, download_name=archive_name)
 
                 except Exception as e:
-                    print(f"❌ Ошибка при создании архива: {e}")
                     flash(f'Ошибка при создании архива: {str(e)}', 'error')
                     return redirect(url_for('contracts'))
             else:
-                print("❌ Не удалось создать ни одного файла")
                 flash('Не удалось создать ни одного договора. Проверьте шаблоны и данные.', 'error')
                 return redirect(url_for('contracts'))
+
+    @app.route('/cleanup/outputs')
+    def cleanup_outputs():
+        """Очистка папки с готовыми договорами"""
+        try:
+            import glob
+
+            # Получаем все файлы в папке outputs
+            files = glob.glob(os.path.join(app.config['OUTPUT_FOLDER'], '*'))
+            deleted_count = 0
+
+            for file_path in files:
+                if os.path.isfile(file_path):
+                    try:
+                        os.remove(file_path)
+                        deleted_count += 1
+                    except Exception as e:
+                        continue
+
+            if deleted_count > 0:
+                flash(f'Удалено {deleted_count} файлов из папки готовых договоров', 'success')
+            else:
+                flash('Папка готовых договоров уже пуста', 'info')
+
+        except Exception as e:
+            flash(f'Ошибка при очистке папки: {str(e)}', 'error')
+
+        return redirect(url_for('templates'))

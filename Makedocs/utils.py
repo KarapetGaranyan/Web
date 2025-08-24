@@ -1,6 +1,6 @@
 import os
 import re
-import hashlib
+import uuid
 from docx import Document
 
 
@@ -28,22 +28,299 @@ def normalize_url(url):
 
 
 def clean_filename(filename):
-    """Очищает имя файла от недопустимых символов, сохраняя читаемость"""
-    # Убираем расширение
+    """Очищает имя файла от недопустимых символов, максимально сохраняя читаемость"""
+    if not filename:
+        return 'document'
+
+    # Убираем расширение, если есть
     name_without_ext = os.path.splitext(filename)[0] if '.' in filename else filename
-    # Заменяем недопустимые символы на подчеркивания
+
+    # Если исходное имя очень короткое, сохраняем его максимально
+    original_name = name_without_ext.strip()
+    if original_name and len(original_name) <= 3:
+        # Для коротких имён (цифры, короткие слова) - только убираем недопустимые символы
+        clean_name = re.sub(r'[<>:"/\\|?*]', '_', original_name)
+        if clean_name:
+            return clean_name
+
+    # Для длинных имён - полная обработка
+    # Заменяем недопустимые символы на подчёркивания
     clean_name = re.sub(r'[<>:"/\\|?*]', '_', name_without_ext)
-    # Убираем лишние пробелы и подчеркивания
-    clean_name = re.sub(r'[_\s]+', '_', clean_name).strip('_')
+
+    # Заменяем последовательности пробелов и подчёркиваний на одно подчёркивание
+    clean_name = re.sub(r'[_\s]+', '_', clean_name)
+
+    # Убираем подчёркивания в начале и конце
+    clean_name = clean_name.strip('_')
+
+    # Ограничиваем длину (Windows имеет ограничение ~260 символов на полный путь)
+    if len(clean_name) > 100:
+        clean_name = clean_name[:100].rstrip('_')
+
+    # Возвращаем результат или fallback
     return clean_name if clean_name else 'document'
 
 
-def simple_replace_in_paragraph(paragraph, data):
-    """Безопасная замена плейсхолдеров в параграфе с улучшенной обработкой ошибок"""
+def create_output_filename_with_client_prefix(client_name, original_filename, templates_count=1, template_name=None):
+    """
+    Создаёт имя выходного файла, максимально сохраняя оригинальное имя
+
+    Args:
+        client_name: Имя клиента
+        original_filename: Оригинальное имя файла шаблона
+        templates_count: Количество шаблонов (для определения нужности префикса)
+        template_name: Имя шаблона (используется при множественных шаблонах)
+
+    Returns:
+        str: Имя выходного файла
+    """
+
+    # Очищаем имя клиента
+    clean_client = clean_filename(client_name)
+    if not clean_client:
+        clean_client = "Client"
+
+    # Разбираем оригинальное имя файла
+    if '.' in original_filename:
+        name_part, extension = os.path.splitext(original_filename)
+    else:
+        name_part, extension = original_filename, '.docx'
+
+    # Очищаем оригинальное имя (но сохраняем его структуру)
+    clean_original = clean_filename(name_part)
+    if not clean_original:
+        clean_original = "document"
+
+    # Логика формирования финального имени:
+
+    # 1. Если шаблон только один - просто добавляем префикс клиента
+    if templates_count == 1:
+        # Проверяем, есть ли уже имя клиента в имени файла
+        if clean_client.lower() in clean_original.lower():
+            # Если имя клиента уже есть в файле, оставляем как есть
+            final_name = clean_original
+        else:
+            # Добавляем имя клиента как префикс
+            final_name = f"{clean_client}_{clean_original}"
+
+    # 2. Если шаблонов несколько - добавляем и клиента, и шаблон для группировки
+    else:
+        parts = [clean_client]
+
+        # Добавляем имя шаблона для группировки, если указано
+        if template_name:
+            clean_template = clean_filename(template_name)
+            if clean_template:
+                parts.append(clean_template)
+
+        # Добавляем оригинальное имя файла
+        parts.append(clean_original)
+
+        final_name = "_".join(parts)
+
+    # Финальная проверка длины (Windows имеет ограничение ~260 символов на полный путь)
+    max_name_length = 150  # Оставляем место для расширения и пути
+    if len(final_name) > max_name_length:
+        # Укорачиваем, сохраняя окончание (которое обычно более важно)
+        final_name = "..." + final_name[-(max_name_length - 3):]
+        final_name = final_name.lstrip('_')  # Убираем начальные подчёркивания после обрезки
+
+    return f"{final_name}{extension}"
+
+
+def preserve_original_filename_with_prefix(original_filename, client_name, template_name=None, add_template=False):
+    """
+    Альтернативная функция - полностью сохраняет оригинальное имя, добавляя только минимальный префикс
+
+    Args:
+        original_filename: Оригинальное имя файла
+        client_name: Имя клиента
+        template_name: Имя шаблона (опционально)
+        add_template: Добавлять ли имя шаблона
+
+    Returns:
+        str: Имя файла с минимальными изменениями
+    """
+
+    # Очищаем имя клиента
+    clean_client = clean_filename(client_name)
+    if not clean_client:
+        clean_client = "Client"
+
+    # Разбираем оригинальное имя
+    if '.' in original_filename:
+        name_part, extension = os.path.splitext(original_filename)
+    else:
+        name_part, extension = original_filename, '.docx'
+
+    # Проверяем, нет ли уже имени клиента в файле
+    if clean_client.lower() in name_part.lower():
+        # Если имя клиента уже есть, возвращаем оригинальное имя
+        return original_filename if original_filename.endswith('.docx') else original_filename + '.docx'
+
+    # Формируем префикс
+    prefix_parts = [clean_client]
+
+    if add_template and template_name:
+        clean_template = clean_filename(template_name)
+        if clean_template:
+            prefix_parts.append(clean_template)
+
+    prefix = "_".join(prefix_parts)
+
+    # Возвращаем файл с префиксом
+    return f"{prefix}_{name_part}{extension}"
+
+
+def smart_filename_generation(client_name, original_filename, template_name=None, templates_count=1):
+    """
+    Умная генерация имени файла с учётом контекста
+
+    Логика:
+    - Сохраняет оригинальное имя файла максимально
+    - Добавляет префикс клиента только если необходимо
+    - Учитывает количество шаблонов и файлов
+    """
+
+    clean_client = clean_filename(client_name)
+    if not clean_client:
+        clean_client = "Client"
+
+    # Получаем базовое имя без расширения
+    base_name = os.path.splitext(original_filename)[0] if '.' in original_filename else original_filename
+    extension = '.docx'
+
+    # Очищаем базовое имя, но сохраняем его читаемость
+    clean_base = clean_filename(base_name)
+    if not clean_base:
+        clean_base = "document"
+
+    # Определяем стратегию именования
+    if templates_count == 1:
+        # Один шаблон - минимальные изменения
+        if len(clean_base) > 3 and not clean_client.lower() in clean_base.lower():
+            # Добавляем клиента только если его нет в имени и имя файла достаточно длинное
+            result = f"{clean_client}_{clean_base}"
+        else:
+            # Сохраняем оригинальное имя
+            result = clean_base
+    else:
+        # Несколько шаблонов - нужна группировка
+        parts = [clean_client]
+
+        if template_name and len(template_name.strip()) > 0:
+            clean_template = clean_filename(template_name)
+            if clean_template and len(clean_template) <= 30:  # Ограничиваем длину имени шаблона
+                parts.append(clean_template)
+
+        parts.append(clean_base)
+        result = "_".join(parts)
+
+    # Контролируем общую длину
+    if len(result) > 100:
+        # Укорачиваем разумно
+        if templates_count == 1:
+            # Для одного шаблона - укорачиваем только базовое имя
+            max_base_len = 100 - len(clean_client) - 1  # -1 для подчёркивания
+            if max_base_len > 10:
+                short_base = clean_base[:max_base_len]
+                result = f"{clean_client}_{short_base}"
+            else:
+                result = f"{clean_client}_{clean_base[:50]}"
+        else:
+            # Для нескольких шаблонов - укорачиваем пропорционально
+            result = result[:100]
+
+    return f"{result}{extension}"
+
+
+def create_simple_output_filename(client_name, original_filename, template_name=None, include_template=False):
+    """Создаёт простое и понятное имя для выходного файла"""
+
+    # Очищаем имя клиента
+    clean_client = clean_filename(client_name)
+
+    # Очищаем оригинальное имя файла
+    if '.' in original_filename:
+        name_without_ext = os.path.splitext(original_filename)[0]
+    else:
+        name_without_ext = original_filename
+
+    clean_original = clean_filename(name_without_ext)
+
+    # Проверяем, что имена не пустые
+    if not clean_client:
+        clean_client = "Client"
+    if not clean_original:
+        clean_original = "Document"
+
+    # Формируем финальное имя
+    if include_template and template_name:
+        clean_template = clean_filename(template_name)
+        if clean_template:
+            filename_parts = [clean_client, clean_template, clean_original]
+        else:
+            filename_parts = [clean_client, clean_original]
+    else:
+        filename_parts = [clean_client, clean_original]
+
+    base_filename = "_".join(filename_parts)
+
+    # Финальная проверка длины
+    if len(base_filename) > 150:
+        base_filename = base_filename[:150].rstrip('_')
+
+    return f"{base_filename}.docx"
+
+
+def should_include_template_name(templates_count, files_in_template_count):
+    """Определяет, нужно ли включать имя шаблона в имя файла"""
+
+    # Если шаблон только один и файл в нём тоже один - имя шаблона не нужно
+    if templates_count == 1 and files_in_template_count == 1:
+        return False
+
+    # Если шаблонов несколько - всегда включаем имя для группировки
+    if templates_count > 1:
+        return True
+
+    # Если шаблон один, но файлов в нём много - включаем имя шаблона для ясности
+    if templates_count == 1 and files_in_template_count > 1:
+        return True
+
+    return False
+
+
+def ensure_unique_filename(desired_filename, used_filenames):
+    """Обеспечивает уникальность имени файла, добавляя номер при необходимости"""
+
+    if desired_filename not in used_filenames:
+        return desired_filename
+
+    # Разбираем имя и расширение
+    name_part, ext_part = os.path.splitext(desired_filename)
+
+    # Ищем свободное имя с номером
+    counter = 1
+    while counter <= 999:  # Разумное ограничение
+        numbered_filename = f"{name_part}_{counter:02d}{ext_part}"
+        if numbered_filename not in used_filenames:
+            return numbered_filename
+        counter += 1
+
+    # Если дошли до сюда, используем UUID
+    unique_id = str(uuid.uuid4())[:8]
+    return f"{name_part}_{unique_id}{ext_part}"
+
+
+def advanced_replace_in_paragraph(paragraph, data):
+    """
+    Продвинутая замена плейсхолдеров в параграфе, которая правильно обрабатывает
+    разбитые на несколько run'ов плейсхолдеры
+    """
     if not paragraph or not hasattr(paragraph, 'runs'):
         return False
 
-    # Проверяем наличие runs
     if not paragraph.runs:
         return False
 
@@ -52,189 +329,77 @@ def simple_replace_in_paragraph(paragraph, data):
     if not full_text or '{{' not in full_text:
         return False
 
-    # Заменяем плейсхолдеры
+    # Заменяем плейсхолдеры в тексте
     original_text = full_text
+    replacements_made = 0
+
     for key, value in data.items():
         placeholder = '{{ ' + key + ' }}'
         if placeholder in full_text:
             full_text = full_text.replace(placeholder, str(value or ''))
+            replacements_made += 1
 
     # Если изменений не было
     if full_text == original_text:
         return False
 
-    # Безопасная замена: проверяем наличие runs
+    # Теперь обновляем параграф
     try:
-        if len(paragraph.runs) > 0:
-            # Сохраняем форматирование первого run'а
-            first_run = paragraph.runs[0]
-            first_run.text = full_text
+        # Очищаем все существующие run'ы
+        for run in paragraph.runs:
+            run.text = ""
 
-            # Очищаем остальные runs (в обратном порядке, чтобы не сбить индексы)
-            for i in range(len(paragraph.runs) - 1, 0, -1):
-                try:
-                    paragraph.runs[i].text = ""
-                except IndexError:
-                    # Пропускаем, если индекс уже недоступен
-                    continue
-
-            return True
+        # Добавляем новый текст в первый run, сохраняя его форматирование
+        if paragraph.runs:
+            paragraph.runs[0].text = full_text
         else:
-            # Если нет runs, создаем новый
-            run = paragraph.add_run(full_text)
-            return True
-
-    except Exception as e:
-        print(f"Ошибка при замене в параграфе: {e}")
-        # Попробуем создать новый run с текстом
-        try:
-            # Очищаем все существующие runs
-            for run in paragraph.runs:
-                run.text = ""
-            # Добавляем новый run с замененным текстом
             paragraph.add_run(full_text)
-            return True
-        except Exception as e2:
-            print(f"Критическая ошибка при создании run: {e2}")
-            return False
-
-
-def process_docx_template_safe(template_path, output_path, data):
-    """Безопасная версия обработки DOCX с улучшенной обработкой таблиц"""
-    try:
-        print(f"📄 Открытие файла: {template_path}")
-        doc = Document(template_path)
-
-        replacements_made = 0
-
-        # Обработка основного текста
-        print("🔍 Поиск плейсхолдеров в основном тексте...")
-        for i, paragraph in enumerate(doc.paragraphs):
-            try:
-                if simple_replace_in_paragraph(paragraph, data):
-                    replacements_made += 1
-                    print(f"  ✅ Замена в параграфе {i}")
-            except Exception as e:
-                print(f"  ⚠️ Ошибка в параграфе {i}: {e}")
-                continue
-
-        # ❗ ИСПРАВЛЕННАЯ ОБРАБОТКА ТАБЛИЦ
-        print("🔍 Поиск плейсхолдеров в таблицах...")
-        print(f"   Найдено таблиц: {len(doc.tables)}")
-
-        for table_idx, table in enumerate(doc.tables):
-            print(f"   📊 Обработка таблицы {table_idx + 1}")
-            try:
-                # Получаем размеры таблицы
-                rows_count = len(table.rows)
-                print(f"      Строк в таблице: {rows_count}")
-
-                for row_idx, row in enumerate(table.rows):
-                    try:
-                        cells_count = len(row.cells)
-                        print(f"      Строка {row_idx + 1}: ячеек {cells_count}")
-
-                        for cell_idx, cell in enumerate(row.cells):
-                            try:
-                                # Получаем весь текст ячейки
-                                cell_text = cell.text
-
-                                if '{{' in cell_text:
-                                    print(f"        Ячейка [{row_idx + 1}][{cell_idx + 1}] содержит плейсхолдеры:")
-                                    print(f"          Текст: '{cell_text[:100]}...'")
-
-                                    # Обрабатываем все параграфы в ячейке
-                                    cell_replacements = 0
-                                    for para_idx, paragraph in enumerate(cell.paragraphs):
-                                        if '{{' in paragraph.text:
-                                            print(f"          Параграф {para_idx}: '{paragraph.text}'")
-
-                                            if simple_replace_in_paragraph(paragraph, data):
-                                                cell_replacements += 1
-                                                replacements_made += 1
-                                                print(f"          ✅ Замена выполнена: '{paragraph.text}'")
-
-                                    if cell_replacements == 0:
-                                        print(f"          ⚠️ Замены не выполнены в ячейке")
-
-                                        # Попробуем альтернативный метод для проблемных ячеек
-                                        if alternative_cell_replacement(cell, data):
-                                            replacements_made += 1
-                                            print(f"          ✅ Альтернативная замена выполнена")
-
-                            except Exception as e:
-                                print(f"        ⚠️ Ошибка в ячейке [{row_idx + 1}][{cell_idx + 1}]: {e}")
-                                continue
-
-                    except Exception as e:
-                        print(f"      ⚠️ Ошибка в строке {row_idx + 1}: {e}")
-                        continue
-
-            except Exception as e:
-                print(f"    ⚠️ Ошибка в таблице {table_idx + 1}: {e}")
-                continue
-
-        # Обработка заголовков и футеров
-        print("🔍 Поиск плейсхолдеров в заголовках и футерах...")
-        for section_idx, section in enumerate(doc.sections):
-            try:
-                # Заголовки
-                if hasattr(section, 'header') and section.header:
-                    for para_idx, paragraph in enumerate(section.header.paragraphs):
-                        try:
-                            if simple_replace_in_paragraph(paragraph, data):
-                                replacements_made += 1
-                                print(f"  ✅ Замена в заголовке секции {section_idx}")
-                        except Exception as e:
-                            print(f"  ⚠️ Ошибка в заголовке секции {section_idx}[{para_idx}]: {e}")
-                            continue
-
-                # Футеры
-                if hasattr(section, 'footer') and section.footer:
-                    for para_idx, paragraph in enumerate(section.footer.paragraphs):
-                        try:
-                            if simple_replace_in_paragraph(paragraph, data):
-                                replacements_made += 1
-                                print(f"  ✅ Замена в футере секции {section_idx}")
-                        except Exception as e:
-                            print(f"  ⚠️ Ошибка в футере секции {section_idx}[{para_idx}]: {e}")
-                            continue
-            except Exception as e:
-                print(f"  ⚠️ Ошибка в секции {section_idx}: {e}")
-                continue
-
-        print(f"📊 Всего замен выполнено: {replacements_made}")
-
-        if replacements_made == 0:
-            print("⚠️  ВНИМАНИЕ: Ни одного плейсхолдера не найдено!")
-            print("Проверьте формат плейсхолдеров в документе. Должно быть: {{ Имя_переменной }}")
-
-            # Показываем содержимое для отладки
-            print("\n📋 Отладочная информация:")
-
-            # Показываем таблицы
-            for table_idx, table in enumerate(doc.tables):
-                print(f"  Таблица {table_idx + 1}:")
-                for row_idx, row in enumerate(table.rows):
-                    for cell_idx, cell in enumerate(row.cells):
-                        if cell.text.strip():
-                            print(f"    [{row_idx + 1}][{cell_idx + 1}]: {cell.text[:200]}")
-
-        # Сохраняем документ
-        doc.save(output_path)
-        print(f"💾 Документ сохранен: {output_path}")
 
         return True
 
     except Exception as e:
-        print(f"❌ Критическая ошибка при обработке документа: {e}")
-        import traceback
-        traceback.print_exc()
-        raise e
+        return False
 
 
-def alternative_cell_replacement(cell, data):
-    """Альтернативный метод замены в ячейке таблицы"""
+def process_table_with_merged_cells(table, data):
+    """
+    Улучшенная обработка таблиц с учётом объединённых ячеек
+    """
+    replacements_made = 0
+
+    try:
+        for row_idx, row in enumerate(table.rows):
+            for cell_idx, cell in enumerate(row.cells):
+                try:
+                    # Получаем весь текст ячейки
+                    cell_text = cell.text
+
+                    if '{{' in cell_text:
+                        # Обрабатываем все параграфы в ячейке
+                        cell_replacements = 0
+                        for para_idx, paragraph in enumerate(cell.paragraphs):
+                            if advanced_replace_in_paragraph(paragraph, data):
+                                cell_replacements += 1
+                                replacements_made += 1
+
+                        if cell_replacements == 0:
+                            # Попробуем альтернативный метод для проблемных ячеек
+                            if try_alternative_cell_replacement(cell, data):
+                                replacements_made += 1
+
+                except Exception as e:
+                    continue
+
+    except Exception as e:
+        pass
+
+    return replacements_made
+
+
+def try_alternative_cell_replacement(cell, data):
+    """
+    Альтернативный метод замены для проблемных ячеек
+    """
     try:
         # Получаем весь текст ячейки
         cell_text = cell.text
@@ -242,7 +407,7 @@ def alternative_cell_replacement(cell, data):
         if not cell_text or '{{' not in cell_text:
             return False
 
-        # Выполняем замены в тексте
+        # Выполняем замены
         modified_text = cell_text
         for key, value in data.items():
             placeholder = '{{ ' + key + ' }}'
@@ -258,179 +423,68 @@ def alternative_cell_replacement(cell, data):
         paragraph = cell.paragraphs[0]  # После clear() остается один пустой параграф
         paragraph.add_run(modified_text)
 
-        print(f"        🔄 Альтернативная замена: '{cell_text[:50]}...' → '{modified_text[:50]}...'")
         return True
 
     except Exception as e:
-        print(f"        ❌ Ошибка альтернативной замены: {e}")
         return False
 
 
-def analyze_table_structure(template_path):
-    """Анализ структуры таблиц в документе"""
+def enhanced_process_docx_template(template_path, output_path, data):
+    """
+    Улучшенная версия обработки DOCX с продвинутой заменой плейсхолдеров
+    """
     try:
         doc = Document(template_path)
 
-        print(f"\n📊 АНАЛИЗ ТАБЛИЦ В ДОКУМЕНТЕ: {template_path}")
-        print("=" * 60)
+        replacements_made = 0
 
+        # Обработка основного текста с улучшенным алгоритмом
+        for i, paragraph in enumerate(doc.paragraphs):
+            try:
+                if advanced_replace_in_paragraph(paragraph, data):
+                    replacements_made += 1
+            except Exception as e:
+                continue
+
+        # Улучшенная обработка таблиц
         for table_idx, table in enumerate(doc.tables):
-            print(f"\n🔍 Таблица {table_idx + 1}:")
-            print(f"   Строк: {len(table.rows)}")
+            table_replacements = process_table_with_merged_cells(table, data)
+            replacements_made += table_replacements
 
-            for row_idx, row in enumerate(table.rows):
-                print(f"   Строка {row_idx + 1}: {len(row.cells)} ячеек")
+        # Обработка заголовков и футеров
+        for section_idx, section in enumerate(doc.sections):
+            try:
+                # Заголовки
+                if hasattr(section, 'header') and section.header:
+                    for para_idx, paragraph in enumerate(section.header.paragraphs):
+                        try:
+                            if advanced_replace_in_paragraph(paragraph, data):
+                                replacements_made += 1
+                        except Exception as e:
+                            continue
 
-                for cell_idx, cell in enumerate(row.cells):
-                    cell_text = cell.text.strip()
-                    if cell_text:
-                        print(
-                            f"     Ячейка [{row_idx + 1}][{cell_idx + 1}]: '{cell_text[:100]}{'...' if len(cell_text) > 100 else ''}'")
+                # Футеры
+                if hasattr(section, 'footer') and section.footer:
+                    for para_idx, paragraph in enumerate(section.footer.paragraphs):
+                        try:
+                            if advanced_replace_in_paragraph(paragraph, data):
+                                replacements_made += 1
+                        except Exception as e:
+                            continue
+            except Exception as e:
+                continue
 
-                        # Проверяем плейсхолдеры
-                        if '{{' in cell_text:
-                            import re
-                            placeholders = re.findall(r'\{\{[^}]*\}\}', cell_text)
-                            print(f"       🎯 Плейсхолдеры: {placeholders}")
+        # Сохраняем документ
+        doc.save(output_path)
 
         return True
 
     except Exception as e:
-        print(f"❌ Ошибка анализа таблиц: {e}")
-        return False
+        raise e
 
 
-def diagnose_document_placeholders(template_path):
-    """Диагностика плейсхолдеров в документе"""
-    try:
-        doc = Document(template_path)
-        placeholders_found = set()
-
-        # Поиск в основном тексте
-        for paragraph in doc.paragraphs:
-            text = paragraph.text
-            # Ищем все плейсхолдеры в формате {{ text }}
-            matches = re.findall(r'\{\{\s*([^}]+)\s*\}\}', text)
-            for match in matches:
-                placeholders_found.add(match.strip())
-
-        # Поиск в таблицах
-        for table in doc.tables:
-            for row in table.rows:
-                for cell in row.cells:
-                    for paragraph in cell.paragraphs:
-                        text = paragraph.text
-                        matches = re.findall(r'\{\{\s*([^}]+)\s*\}\}', text)
-                        for match in matches:
-                            placeholders_found.add(match.strip())
-
-        # Поиск в заголовках и футерах
-        for section in doc.sections:
-            if hasattr(section, 'header') and section.header:
-                for paragraph in section.header.paragraphs:
-                    text = paragraph.text
-                    matches = re.findall(r'\{\{\s*([^}]+)\s*\}\}', text)
-                    for match in matches:
-                        placeholders_found.add(match.strip())
-
-            if hasattr(section, 'footer') and section.footer:
-                for paragraph in section.footer.paragraphs:
-                    text = paragraph.text
-                    matches = re.findall(r'\{\{\s*([^}]+)\s*\}\}', text)
-                    for match in matches:
-                        placeholders_found.add(match.strip())
-
-        return list(placeholders_found)
-
-    except Exception as e:
-        print(f"Ошибка диагностики: {e}")
-        return []
-
-
-def calculate_file_hash(file_path):
-    """Вычисляет хэш файла для проверки уникальности"""
-    hash_md5 = hashlib.md5()
-    try:
-        with open(file_path, "rb") as f:
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_md5.update(chunk)
-        return hash_md5.hexdigest()
-    except Exception as e:
-        print(f"Ошибка при вычислении хэша файла {file_path}: {e}")
-        return "error"
-
-
-def debug_file_contents(file_path, max_chars=500):
-    """Показывает начало содержимого файла для отладки"""
-    try:
-        doc = Document(file_path)
-        text_content = []
-
-        # Собираем текст из первых нескольких параграфов
-        for i, paragraph in enumerate(doc.paragraphs[:5]):
-            if paragraph.text.strip():
-                text_content.append(f"П{i}: {paragraph.text[:100]}...")
-
-        content_preview = " | ".join(text_content)
-        return content_preview[:max_chars] if content_preview else "Нет текстового содержимого"
-    except Exception as e:
-        return f"Ошибка чтения: {e}"
-
-
-def debug_template_processing(templates, template_ids):
-    """Отладочная функция для анализа выбранных шаблонов"""
-    print(f"\n🔍 ОТЛАДКА ШАБЛОНОВ:")
-    print(f"   Получено ID шаблонов: {template_ids}")
-    print(f"   Найдено шаблонов в БД: {len(templates)}")
-
-    for i, template in enumerate(templates):
-        print(f"\n   📋 Шаблон #{i + 1}:")
-        print(f"      ID: {template.id}")
-        print(f"      Название: '{template.name}'")
-        print(f"      Описание: '{template.description or 'Не указано'}'")
-        print(f"      Дата создания: {template.created_at}")
-        print(f"      Количество файлов: {len(template.files)}")
-
-        for j, template_file in enumerate(template.files):
-            file_path = os.path.join('uploads/templates', template_file.filename)
-            file_exists = os.path.exists(file_path)
-            file_size = os.path.getsize(file_path) if file_exists else 0
-            file_hash = calculate_file_hash(file_path) if file_exists else "N/A"
-
-            print(f"         📄 Файл #{j + 1}:")
-            print(f"            ID в БД: {template_file.id}")
-            print(f"            Оригинал: {template_file.original_filename}")
-            print(f"            Система: {template_file.filename}")
-            print(f"            Существует: {'✅' if file_exists else '❌'}")
-            print(f"            Размер: {file_size} байт")
-            print(f"            MD5: {file_hash}")
-            print(f"            Загружен: {template_file.uploaded_at}")
-
-            # Проверяем уникальность файлов
-            if file_exists:
-                try:
-                    content_preview = debug_file_contents(file_path, 100)
-                    print(f"            Содержимое: {content_preview}")
-                except Exception as e:
-                    print(f"            Ошибка чтения: {e}")
-
-        # Проверяем, есть ли дублирующиеся хэши в одном шаблоне
-        file_hashes = []
-        for template_file in template.files:
-            file_path = os.path.join('uploads/templates', template_file.filename)
-            if os.path.exists(file_path):
-                file_hash = calculate_file_hash(file_path)
-                file_hashes.append((template_file.original_filename, file_hash))
-
-        # Проверяем дубликаты
-        seen_hashes = set()
-        duplicates = []
-        for filename, hash_val in file_hashes:
-            if hash_val in seen_hashes:
-                duplicates.append(filename)
-            seen_hashes.add(hash_val)
-
-        if duplicates:
-            print(f"      ⚠️ НАЙДЕНЫ ДУБЛИРУЮЩИЕСЯ ФАЙЛЫ: {duplicates}")
-        else:
-            print(f"      ✅ Все файлы уникальны")
+def process_docx_template_safe(template_path, output_path, data):
+    """
+    Обертка для обратной совместимости - использует улучшенную версию
+    """
+    return enhanced_process_docx_template(template_path, output_path, data)
