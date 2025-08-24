@@ -10,7 +10,6 @@
         .card-hover:hover {
             transform: translateY(-2px);
             transition: all 0.3s ease;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
         .badge-difficulty {
             font-size: 0.8rem;
@@ -21,24 +20,6 @@
             align-items: center;
             justify-content: center;
             text-align: center;
-        }
-        .telegram-integration {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 10px;
-            padding: 20px;
-            margin: 20px 0;
-        }
-        .progress-circle {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: conic-gradient(#28a745 0deg, #28a745 var(--progress), #e9ecef var(--progress), #e9ecef 360deg);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #333;
-            font-weight: bold;
         }
     </style>
 </head>
@@ -56,14 +37,17 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <div class="navbar-nav ms-auto">
                     {% if user.is_authenticated %}
+                        <span class="navbar-text me-3">
+                            Привет, {{ user.username }}!
+                        </span>
                         <a class="nav-link" href="{% url 'cards:card_list' %}">📚 Карточки</a>
                         <a class="nav-link" href="{% url 'cards:card_create' %}">➕ Добавить</a>
                         <a class="nav-link" href="{% url 'cards:smart_study' %}">🧠 Изучать</a>
                         <a class="nav-link" href="{% url 'cards:study_results' %}">📊 Результаты</a>
-                        <a class="nav-link" href="{% url 'telegram_bot:link_telegram' %}">🤖 Telegram</a>
-                        <a class="nav-link" href="/admin/logout/">🚪 Выйти</a>
+                        <a class="nav-link" href="{% url 'logout' %}">🚪 Выйти</a>
                     {% else %}
-                        <a class="nav-link" href="/admin/login/">🔑 Войти</a>
+                        <a class="nav-link" href="{% url 'login' %}">🔑 Войти</a>
+                        <a class="nav-link" href="{% url 'register' %}">✨ Регистрация</a>
                     {% endif %}
                 </div>
             </div>
@@ -86,9 +70,7 @@
 
     <footer class="bg-dark text-light text-center py-3 mt-5">
         <div class="container">
-            <small>&copy; 2024 LinguaTrack - Изучение языков с умом |
-                <a href="{% url 'telegram_bot:bot_info' %}" class="text-light">🤖 Telegram бот</a>
-            </small>
+            <small>&copy; 2024 LinguaTrack - Изучение языков с умом</small>
         </div>
     </footer>
 </body>

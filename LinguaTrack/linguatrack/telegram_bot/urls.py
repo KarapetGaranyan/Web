@@ -9,4 +9,5 @@ urlpatterns = [
     path('info/', views.bot_info, name='bot_info'),
     path('link/', views.link_telegram, name='link_telegram'),
     path('link/confirm/<str:token>/', views.confirm_link, name='confirm_link'),
+    path('unlink/', views.unlink_telegram, name='unlink_telegram'),  # Новый URL
 ]

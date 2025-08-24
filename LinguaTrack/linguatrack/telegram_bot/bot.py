@@ -13,8 +13,9 @@ import django
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'linguatrack.settings')
 django.setup()
 
+# ИСПРАВЛЕННЫЕ ИМПОРТЫ:
 from cards.models import Card, StudySession, UserStats, Schedule
-from telegram_bot.models import TelegramUser, BotMessage
+from telegram_bot.models import TelegramUser, BotMessage, LinkToken  # ← Добавлен LinkToken
 from django.contrib.auth.models import User
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -30,36 +31,70 @@ class StudyStates(StatesGroup):
     waiting_for_answer = State()
 
 
+def create_telegram_data(user):
+    """Создает безопасные данные пользователя Telegram"""
+    return {
+        'id': user.id,
+        'username': user.username or '',
+        'first_name': user.first_name or '',
+        'last_name': user.last_name or '',
+        'language_code': user.language_code or 'ru'
+    }
+
+
 def get_or_create_user_sync(telegram_data):
+    """Синхронная функция для получения или создания пользователя Telegram"""
     try:
         telegram_user = TelegramUser.objects.select_related('user').get(
             telegram_id=telegram_data['id']
         )
         return telegram_user
     except TelegramUser.DoesNotExist:
-        username = f"tg_{telegram_data['id']}"
+        # Безопасное получение данных с проверкой на None
+        first_name = telegram_data.get('first_name') or ''
+        last_name = telegram_data.get('last_name') or ''
+        username = telegram_data.get('username') or ''
+        language_code = telegram_data.get('language_code') or 'ru'
+
+        # Создаем уникальный username для Django
+        base_username = f"tg_{telegram_data['id']}"
+        django_username = base_username
+        counter = 1
+
+        # Проверяем уникальность username
+        while User.objects.filter(username=django_username).exists():
+            django_username = f"{base_username}_{counter}"
+            counter += 1
+
+        # Создаем Django пользователя с безопасными срезами
         django_user = User.objects.create(
-            username=username,
-            first_name=telegram_data.get('first_name', ''),
-            last_name=telegram_data.get('last_name', '')
+            username=django_username,
+            first_name=first_name[:30] if first_name else '',
+            last_name=last_name[:30] if last_name else ''
         )
 
+        # Создаем Telegram пользователя с безопасными срезами
         telegram_user = TelegramUser.objects.create(
             user=django_user,
             telegram_id=telegram_data['id'],
-            username=telegram_data.get('username', ''),
-            first_name=telegram_data.get('first_name', ''),
-            last_name=telegram_data.get('last_name', ''),
-            language_code=telegram_data.get('language_code', 'ru')
+            username=username[:100] if username else '',
+            first_name=first_name[:100] if first_name else '',
+            last_name=last_name[:100] if last_name else '',
+            language_code=language_code
         )
 
         return telegram_user
-
-
-get_or_create_user = sync_to_async(get_or_create_user_sync)
+    except Exception as e:
+        # Логируем ошибку для отладки
+        import traceback
+        print(f"Ошибка создания пользователя: {e}")
+        print(f"Данные Telegram: {telegram_data}")
+        print(f"Трассировка: {traceback.format_exc()}")
+        raise
 
 
 def log_message_sync(telegram_user, msg_type, content):
+    """Синхронная функция для логирования сообщений"""
     return BotMessage.objects.create(
         telegram_user=telegram_user,
         message_type=msg_type,
@@ -67,19 +102,14 @@ def log_message_sync(telegram_user, msg_type, content):
     )
 
 
+# Асинхронные обертки
+get_or_create_user = sync_to_async(get_or_create_user_sync)
 log_message = sync_to_async(log_message_sync)
 
 
 @dp.message(CommandStart())
 async def start_command(message: Message):
-    telegram_data = {
-        'id': message.from_user.id,
-        'username': message.from_user.username,
-        'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name,
-        'language_code': message.from_user.language_code
-    }
-
+    telegram_data = create_telegram_data(message.from_user)
     telegram_user = await get_or_create_user(telegram_data)
 
     welcome_text = f"""
@@ -110,73 +140,258 @@ async def start_command(message: Message):
 
 @dp.message(Command("link"))
 async def link_command(message: Message):
+    """Команда привязки аккаунта с проверкой токена"""
     command_parts = message.text.split(maxsplit=1)
 
     if len(command_parts) < 2:
         await message.answer(
-            "❌ Неверный формат команды.\n"
-            "Получите токен привязки на сайте LinguaTrack\n"
-            "Формат: /link ваш_токен"
+            "❌ Неверный формат команды.\n\n"
+            "📋 Получите токен привязки на сайте LinguaTrack\n"
+            "🔗 Формат: /link ваш_токен\n\n"
+            "💡 Токен действует 10 минут после создания"
         )
         return
 
     token = command_parts[1].strip()
 
-    telegram_data = {
-        'id': message.from_user.id,
-        'username': message.from_user.username,
-        'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name,
-        'language_code': message.from_user.language_code
-    }
+    @sync_to_async
+    def process_link_token(telegram_id, username, first_name, last_name, language_code, token):
+        from telegram_bot.models import LinkToken, TelegramUser
+        from cards.models import Card
 
-    telegram_user = await get_or_create_user(telegram_data)
+        try:
+            # Ищем токен
+            link_token = LinkToken.objects.get(token=token)
+
+            # Проверяем действительность
+            if not link_token.is_valid:
+                if link_token.is_expired:
+                    return False, "⏰ Токен истек. Получите новый на сайте."
+                elif link_token.is_used:
+                    return False, "🔄 Токен уже использован. Получите новый."
+                else:
+                    return False, "❌ Токен недействителен."
+
+            # Проверяем, не привязан ли уже этот Telegram аккаунт
+            existing_tg_user = TelegramUser.objects.filter(telegram_id=telegram_id).first()
+
+            if existing_tg_user:
+                # Обновляем существующую связь
+                existing_tg_user.user = link_token.user
+                existing_tg_user.username = username or ''
+                existing_tg_user.first_name = first_name or ''
+                existing_tg_user.last_name = last_name or ''
+                existing_tg_user.language_code = language_code or 'ru'
+                existing_tg_user.is_active = True
+                existing_tg_user.save()
+                telegram_user = existing_tg_user
+                action = "переподключен"
+            else:
+                # Создаем новую связь
+                telegram_user = TelegramUser.objects.create(
+                    user=link_token.user,
+                    telegram_id=telegram_id,
+                    username=username or '',
+                    first_name=first_name or '',
+                    last_name=last_name or '',
+                    language_code=language_code or 'ru'
+                )
+                action = "привязан"
+
+            # Отмечаем токен как использованный
+            link_token.use_token(telegram_id)
+
+            # Считаем карточки пользователя
+            cards_count = Card.objects.filter(user=link_token.user).count()
+
+            return True, {
+                'user': link_token.user,
+                'cards_count': cards_count,
+                'action': action,
+                'telegram_user': telegram_user
+            }
+
+        except LinkToken.DoesNotExist:
+            return False, "🔍 Токен не найден. Проверьте правильность токена."
+        except Exception as e:
+            return False, f"⚠️ Ошибка привязки: {str(e)}"
+
+    # Выполняем проверку и привязку
+    success, result = await process_link_token(
+        message.from_user.id,
+        message.from_user.username,
+        message.from_user.first_name,
+        message.from_user.last_name,
+        message.from_user.language_code,
+        token
+    )
+
+    if success:
+        user_info = result
+        response_text = f"""
+✅ **Аккаунт успешно {user_info['action']}!**
+
+👤 Пользователь: **{user_info['user'].username}**
+📚 Доступно карточек: **{user_info['cards_count']}**
+
+🎉 Теперь вы можете использовать все функции бота:
+
+📚 /today - карточки на сегодня
+🎯 /test - быстрый тест  
+📊 /progress - ваша статистика
+📝 /cards - список карточек
+
+💡 Если у вас нет карточек, создайте их на сайте!
+
+Начнем изучение? 🚀
+"""
+
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📚 Карточки на сегодня", callback_data="today")],
+            [InlineKeyboardButton(text="🎯 Быстрый тест", callback_data="test")],
+            [InlineKeyboardButton(text="📊 Моя статистика", callback_data="progress")]
+        ])
+
+        await message.answer(response_text, reply_markup=keyboard, parse_mode="Markdown")
+
+        # Логируем успешную привязку
+        await log_message(user_info['telegram_user'], "link_success",
+                          f"Успешная привязка к {user_info['user'].username}")
+
+    else:
+        error_message = result
+        await message.answer(f"{error_message}\n\n💡 Получите новый токен на сайте LinguaTrack")
+
+        # Логируем неудачную попытку для текущего пользователя
+        telegram_data = create_telegram_data(message.from_user)
+        telegram_user = await get_or_create_user(telegram_data)
+        await log_message(telegram_user, "link_error", f"Ошибка токена: {token[:8]}...")
+
+
+@dp.message(Command("unlink"))
+async def unlink_command(message: Message):
+    """Команда отвязки Telegram аккаунта"""
 
     @sync_to_async
-    def link_account():
+    def process_unlink(telegram_id):
         try:
-            admin_user = User.objects.filter(is_superuser=True).first()
-            if not admin_user:
-                admin_user = User.objects.create_user(
-                    username=f'user_{telegram_user.telegram_id}',
-                    first_name=telegram_user.first_name
-                )
+            telegram_user = TelegramUser.objects.get(telegram_id=telegram_id)
 
-            telegram_user.user = admin_user
-            telegram_user.save()
+            # Получаем информацию для ответа
+            linked_username = telegram_user.user.username
+            cards_count = Card.objects.filter(user=telegram_user.user).count()
 
-            return admin_user, None
+            # Отвязываем (удаляем связь)
+            telegram_user.delete()
+
+            # Также деактивируем все токены этого пользователя
+            LinkToken.objects.filter(telegram_id=telegram_id).update(is_used=True)
+
+            return True, {
+                'username': linked_username,
+                'cards_count': cards_count
+            }
+
+        except TelegramUser.DoesNotExist:
+            return False, "Ваш аккаунт не привязан к системе"
         except Exception as e:
-            return None, str(e)
+            return False, f"Ошибка отвязки: {str(e)}"
 
-    linked_user, error = await link_account()
+    # Подтверждение действия
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Да, отвязать", callback_data="confirm_unlink"),
+            InlineKeyboardButton(text="❌ Отмена", callback_data="cancel_unlink")
+        ]
+    ])
 
-    if error:
-        await message.answer(f"❌ Ошибка привязки: {error}")
+    await message.answer(
+        "🔓 **Отвязка Telegram аккаунта**\n\n"
+        "⚠️ Вы уверены, что хотите отвязать ваш Telegram от LinguaTrack?\n\n"
+        "После отвязки:\n"
+        "• Бот не будет иметь доступ к вашим карточкам\n"
+        "• Уведомления будут отключены\n"
+        "• Для повторной привязки нужен будет новый токен\n\n"
+        "Ваши карточки на сайте останутся без изменений.",
+        reply_markup=keyboard,
+        parse_mode="Markdown"
+    )
+
+
+@dp.callback_query(F.data == "confirm_unlink")
+async def confirm_unlink_callback(callback: CallbackQuery):
+    """Подтверждение отвязки"""
+
+    @sync_to_async
+    def do_unlink(telegram_id):
+        try:
+            telegram_user = TelegramUser.objects.get(telegram_id=telegram_id)
+
+            # Получаем информацию для ответа
+            linked_username = telegram_user.user.username
+            cards_count = Card.objects.filter(user=telegram_user.user).count()
+
+            # Логируем отвязку
+            BotMessage.objects.create(
+                telegram_user=telegram_user,
+                message_type="unlink",
+                content=f"Отвязка от {linked_username}"
+            )
+
+            # Отвязываем (удаляем связь)
+            telegram_user.delete()
+
+            # Деактивируем все токены
+            LinkToken.objects.filter(telegram_id=telegram_id).update(is_used=True)
+
+            return True, {
+                'username': linked_username,
+                'cards_count': cards_count
+            }
+
+        except TelegramUser.DoesNotExist:
+            return False, "Ваш аккаунт не был привязан"
+        except Exception as e:
+            return False, f"Ошибка: {str(e)}"
+
+    success, result = await do_unlink(callback.from_user.id)
+
+    if success:
+        await callback.message.edit_text(
+            f"✅ **Аккаунт успешно отвязан!**\n\n"
+            f"👤 Пользователь: **{result['username']}**\n"
+            f"📚 Карточек было: **{result['cards_count']}**\n\n"
+            f"🔗 Для повторной привязки:\n"
+            f"1. Получите новый токен на сайте\n"
+            f"2. Используйте команду /link\n\n"
+            f"Удачи в изучении языков! 🎓",
+            parse_mode="Markdown"
+        )
     else:
-        await message.answer(
-            f"✅ Аккаунт успешно привязан!\n"
-            f"Пользователь: {linked_user.username}\n\n"
-            "Теперь вы можете использовать все функции бота:\n"
-            "📚 /today - карточки на сегодня\n"
-            "🎯 /test - быстрый тест\n"
-            "📊 /progress - статистика\n"
-            "📋 /cards - список карточек"
+        await callback.message.edit_text(
+            f"❌ {result}\n\n"
+            f"Если проблема повторяется, обратитесь в поддержку.",
+            parse_mode="Markdown"
         )
 
-    await log_message(telegram_user, "link", f"Привязка с токеном {token[:8]}...")
+    await callback.answer()
+
+
+@dp.callback_query(F.data == "cancel_unlink")
+async def cancel_unlink_callback(callback: CallbackQuery):
+    """Отмена отвязки"""
+    await callback.message.edit_text(
+        "✅ Отвязка отменена.\n\n"
+        "Ваш аккаунт остается привязанным к LinguaTrack.\n"
+        "Используйте /help для просмотра команд.",
+        parse_mode="Markdown"
+    )
+    await callback.answer("Отвязка отменена")
 
 
 @dp.message(Command("today"))
 async def today_command(message: Message):
-    telegram_data = {
-        'id': message.from_user.id,
-        'username': message.from_user.username,
-        'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name,
-        'language_code': message.from_user.language_code
-    }
-
+    telegram_data = create_telegram_data(message.from_user)
     telegram_user = await get_or_create_user(telegram_data)
 
     @sync_to_async
@@ -228,14 +443,7 @@ async def today_command(message: Message):
 
 @dp.message(Command("progress"))
 async def progress_command(message: Message):
-    telegram_data = {
-        'id': message.from_user.id,
-        'username': message.from_user.username,
-        'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name,
-        'language_code': message.from_user.language_code
-    }
-
+    telegram_data = create_telegram_data(message.from_user)
     telegram_user = await get_or_create_user(telegram_data)
 
     @sync_to_async
@@ -281,7 +489,7 @@ async def progress_command(message: Message):
         weekly_progress = stats.weekly_progress
         progress_blocks = int(weekly_progress // 10)
         remaining_blocks = 10 - progress_blocks
-        progress_bar = "▓" * progress_blocks + "░" * remaining_blocks
+        progress_bar = "█" * progress_blocks + "░" * remaining_blocks
         progress_text += f"\n[{progress_bar}] {weekly_progress}%"
     except:
         progress_text += f"\nПрогресс: {stats.current_week_studied}/{stats.weekly_goal}"
@@ -300,14 +508,7 @@ async def progress_command(message: Message):
 
 @dp.message(Command("test"))
 async def test_command(message: Message, state: FSMContext):
-    telegram_data = {
-        'id': message.from_user.id,
-        'username': message.from_user.username,
-        'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name,
-        'language_code': message.from_user.language_code
-    }
-
+    telegram_data = create_telegram_data(message.from_user)
     telegram_user = await get_or_create_user(telegram_data)
 
     @sync_to_async
@@ -344,14 +545,7 @@ async def test_command(message: Message, state: FSMContext):
 
 @dp.message(Command("cards"))
 async def cards_command(message: Message):
-    telegram_data = {
-        'id': message.from_user.id,
-        'username': message.from_user.username,
-        'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name,
-        'language_code': message.from_user.language_code
-    }
-
+    telegram_data = create_telegram_data(message.from_user)
     telegram_user = await get_or_create_user(telegram_data)
 
     @sync_to_async
@@ -397,6 +591,7 @@ async def help_command(message: Message):
 
 📚 **Основные команды:**
 /link токен - Привязать аккаунт
+/unlink - Отвязать аккаунт
 /today - Карточки к повторению сегодня
 /test - Быстрый тест (случайная карточка)
 /progress - Твоя статистика обучения
@@ -418,14 +613,7 @@ async def help_command(message: Message):
 async def handle_study_answer(message: Message, state: FSMContext):
     data = await state.get_data()
 
-    telegram_data = {
-        'id': message.from_user.id,
-        'username': message.from_user.username,
-        'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name,
-        'language_code': message.from_user.language_code
-    }
-
+    telegram_data = create_telegram_data(message.from_user)
     telegram_user = await get_or_create_user(telegram_data)
 
     @sync_to_async
@@ -550,14 +738,7 @@ async def test_callback(callback: CallbackQuery, state: FSMContext):
 async def start_study_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_reply_markup(reply_markup=None)
 
-    telegram_data = {
-        'id': callback.from_user.id,
-        'username': callback.from_user.username,
-        'first_name': callback.from_user.first_name,
-        'last_name': callback.from_user.last_name,
-        'language_code': callback.from_user.language_code
-    }
-
+    telegram_data = create_telegram_data(callback.from_user)
     telegram_user = await get_or_create_user(telegram_data)
 
     @sync_to_async
@@ -606,14 +787,7 @@ async def start_study_callback(callback: CallbackQuery, state: FSMContext):
 
 @dp.message()
 async def handle_text_message(message: Message):
-    telegram_data = {
-        'id': message.from_user.id,
-        'username': message.from_user.username,
-        'first_name': message.from_user.first_name,
-        'last_name': message.from_user.last_name,
-        'language_code': message.from_user.language_code
-    }
-
+    telegram_data = create_telegram_data(message.from_user)
     telegram_user = await get_or_create_user(telegram_data)
 
     search_text = message.text.lower().strip()

@@ -14,11 +14,20 @@
         </div>
         <div class="col-md-4 text-end">
             {% if user.telegram_profile %}
-                <span class="badge bg-success">✅ Подключен</span>
-                <small class="d-block">@{{ user.telegram_profile.username|default:user.telegram_profile.telegram_id }}</small>
+                <div class="d-flex align-items-center justify-content-end mb-2">
+                    <span class="badge bg-success me-2">✅ Подключен</span>
+                </div>
+                <small class="d-block text-light">
+                    @{{ user.telegram_profile.username|default:user.telegram_profile.telegram_id }}
+                </small>
+                <div class="mt-2">
+                    <a href="{% url 'telegram_bot:unlink_telegram' %}" class="btn btn-outline-light btn-sm">
+                        🔓 Отвязать
+                    </a>
+                </div>
             {% else %}
-                <a href="/telegram/link/" class="btn btn-light">
-                    Подключить
+                <a href="{% url 'telegram_bot:link_telegram' %}" class="btn btn-light">
+                    🔗 Подключить
                 </a>
             {% endif %}
         </div>
@@ -103,7 +112,7 @@
                                 <h5 class="card-title">{{ card.word }}</h5>
                                 <p class="card-text text-muted">{{ card.translation }}</p>
 
-                                <!-- Прогресс изучения (упрощенная версия) -->
+                                <!-- Прогресс изучения -->
                                 {% if card.times_studied > 0 %}
                                     <div class="mb-2">
                                         <div class="d-flex justify-content-between align-items-center">
@@ -144,20 +153,24 @@
                             <div class="card-footer">
                                 <div class="btn-group w-100" role="group">
                                     <a href="{% url 'cards:card_detail' card.pk %}"
-                                       class="btn btn-sm btn-outline-primary">📖</a>
+                                       class="btn btn-sm btn-outline-primary"
+                                       title="Подробности">📖</a>
                                     <a href="{% url 'cards:card_edit' card.pk %}"
-                                       class="btn btn-sm btn-outline-warning">✏️</a>
+                                       class="btn btn-sm btn-outline-warning"
+                                       title="Редактировать">✏️</a>
 
                                     <!-- Кнопка озвучки -->
                                     {% if card.audio %}
                                         <button onclick="playAudio({{ card.pk }})"
-                                                class="btn btn-sm btn-outline-info">🔊</button>
+                                                class="btn btn-sm btn-outline-info"
+                                                title="Озвучить">🔊</button>
                                         <audio id="audio-{{ card.pk }}" preload="none">
                                             <source src="{% url 'cards:play_audio' card.pk %}" type="audio/mpeg">
                                         </audio>
                                     {% else %}
                                         <a href="{% url 'cards:generate_audio' card.pk %}"
-                                           class="btn btn-sm btn-outline-secondary">🎵</a>
+                                           class="btn btn-sm btn-outline-secondary"
+                                           title="Генерировать аудио">🎵</a>
                                     {% endif %}
                                 </div>
                             </div>
@@ -165,16 +178,49 @@
                     </div>
                 {% endfor %}
             </div>
+
+            <!-- Пагинация (если нужна) -->
+            {% comment %}
+            {% if cards.has_other_pages %}
+                <nav aria-label="Пагинация карточек">
+                    <ul class="pagination justify-content-center">
+                        {% if cards.has_previous %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ cards.previous_page_number }}">Предыдущая</a>
+                            </li>
+                        {% endif %}
+
+                        <li class="page-item active">
+                            <span class="page-link">{{ cards.number }} из {{ cards.paginator.num_pages }}</span>
+                        </li>
+
+                        {% if cards.has_next %}
+                            <li class="page-item">
+                                <a class="page-link" href="?page={{ cards.next_page_number }}">Следующая</a>
+                            </li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            {% endif %}
+            {% endcomment %}
+
         {% else %}
             <div class="text-center py-5">
                 <div class="mb-4">
                     <i class="display-1">📚</i>
                 </div>
                 <h3 class="text-muted">Карточки не найдены</h3>
-                <p class="text-muted">Создайте свою первую карточку для изучения!</p>
-                <a href="{% url 'cards:card_create' %}" class="btn btn-success btn-lg">
-                    ➕ Создать карточку
-                </a>
+                {% if search_query or difficulty_filter or status_filter %}
+                    <p class="text-muted">Попробуйте изменить критерии поиска</p>
+                    <a href="{% url 'cards:card_list' %}" class="btn btn-outline-primary">
+                        🔄 Сбросить фильтры
+                    </a>
+                {% else %}
+                    <p class="text-muted">Создайте свою первую карточку для изучения!</p>
+                    <a href="{% url 'cards:card_create' %}" class="btn btn-success btn-lg">
+                        ➕ Создать карточку
+                    </a>
+                {% endif %}
             </div>
         {% endif %}
     </div>
@@ -269,24 +315,44 @@
                         <span class="badge bg-success me-2">✅</span>
                         <small>Подключен</small>
                     </div>
-                    <small class="text-muted">
+                    <small class="text-muted d-block mb-2">
                         @{{ user.telegram_profile.username|default:user.telegram_profile.telegram_id }}
                     </small>
-                    <div class="mt-2">
+                    <div class="mb-2">
                         <small class="text-muted">
                             Уведомления:
                             {% if user.telegram_profile.notifications_enabled %}
-                                ✅ Включены
+                                <span class="text-success">✅ Включены</span>
                             {% else %}
-                                ❌ Отключены
+                                <span class="text-danger">❌ Отключены</span>
                             {% endif %}
                         </small>
                     </div>
+                    <div class="d-grid gap-1">
+                        <a href="{% url 'telegram_bot:unlink_telegram' %}" class="btn btn-outline-danger btn-sm">
+                            🔓 Отвязать
+                        </a>
+                    </div>
                 {% else %}
                     <p class="text-muted mb-3">Подключи Telegram для изучения на ходу!</p>
-                    <a href="/telegram/link/" class="btn btn-primary btn-sm">
-                        🤖 Подключить бота
-                    </a>
+                    <div class="d-grid">
+                        <a href="{% url 'telegram_bot:link_telegram' %}" class="btn btn-primary btn-sm">
+                            🤖 Подключить бота
+                        </a>
+                    </div>
+                {% endif %}
+
+                <!-- Telegram команды -->
+                {% if user.telegram_profile %}
+                    <div class="mt-3">
+                        <small class="text-muted d-block mb-1">Команды бота:</small>
+                        <div class="small">
+                            <code>/today</code> - карточки на сегодня<br>
+                            <code>/test</code> - быстрый тест<br>
+                            <code>/progress</code> - статистика<br>
+                            <code>/help</code> - все команды
+                        </div>
+                    </div>
                 {% endif %}
             </div>
         </div>
@@ -300,5 +366,67 @@ function playAudio(cardId) {
         audio.play().catch(e => console.log('Ошибка воспроизведения:', e));
     }
 }
+
+// Подсказки для пользователей
+document.addEventListener('DOMContentLoaded', function() {
+    // Показать подсказку для новых пользователей
+    const totalCards = {{ stats.total_cards }};
+    const isLinked = {% if user.telegram_profile %}true{% else %}false{% endif %};
+
+    if (totalCards === 0) {
+        setTimeout(() => {
+            if (confirm('Добро пожаловать в LinguaTrack! 🎉\n\nХотите создать первую карточку для изучения?')) {
+                window.location.href = '{% url "cards:card_create" %}';
+            }
+        }, 1000);
+    } else if (totalCards >= 3 && !isLinked) {
+        // Предложить подключить Telegram после создания нескольких карточек
+        setTimeout(() => {
+            const telegram = document.querySelector('.telegram-integration');
+            if (telegram) {
+                telegram.style.animation = 'pulse 2s infinite';
+                telegram.style.border = '2px solid #ffc107';
+            }
+        }, 2000);
+    }
+});
 </script>
+
+<style>
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.telegram-integration {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.card-hover:hover {
+    transform: translateY(-2px);
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.badge-difficulty {
+    font-size: 0.8rem;
+}
+
+.progress-circle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: conic-gradient(#28a745 0deg, #28a745 var(--progress), #e9ecef var(--progress), #e9ecef 360deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #333;
+    font-weight: bold;
+}
+</style>
 {% endblock %}

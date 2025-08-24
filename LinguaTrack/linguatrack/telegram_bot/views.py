@@ -8,28 +8,26 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST
 import json
 import secrets
-from .models import TelegramUser
-from .bot import bot, dp
-
-
-from django.shortcuts import render, redirect
-from django.contrib.auth.decorators import login_required
-from django.contrib import messages
-from django.http import JsonResponse
-from django.utils import timezone
 from datetime import timedelta
-from django.conf import settings
-import secrets
-import string
 
 # Импорты моделей
-from .models import TelegramUser, BotMessage
+from .models import TelegramUser, BotMessage, LinkToken
 from cards.models import Card
+
+try:
+    from .bot import bot, dp
+
+    BOT_AVAILABLE = True
+except ImportError:
+    BOT_AVAILABLE = False
 
 
 @csrf_exempt
 @require_POST
 async def webhook(request):
+    if not BOT_AVAILABLE:
+        return JsonResponse({'error': 'Bot not available'}, status=503)
+
     try:
         update_data = json.loads(request.body)
         from aiogram.types import Update
@@ -43,6 +41,9 @@ async def webhook(request):
 
 
 async def set_webhook(request):
+    if not BOT_AVAILABLE:
+        return JsonResponse({'error': 'Bot not available'}, status=503)
+
     if not settings.WEBHOOK_URL:
         return JsonResponse({'error': 'WEBHOOK_URL не настроен'})
 
@@ -58,27 +59,10 @@ async def set_webhook(request):
         return JsonResponse({'error': str(e)})
 
 
-async def bot_info(request):
-    try:
-        me = await bot.get_me()
-        webhook_info = await bot.get_webhook_info()
-
-        stats = {
-            'bot_username': me.username,
-            'bot_id': me.id,
-            'webhook_url': webhook_info.url,
-            'pending_updates': webhook_info.pending_update_count,
-            'users_count': await TelegramUser.objects.acount(),
-            'active_users': await TelegramUser.objects.filter(is_active=True).acount(),
-        }
-
-        return JsonResponse(stats)
-    except Exception as e:
-        return JsonResponse({'error': str(e)})
-
-
 @login_required
 def link_telegram(request):
+    """Страница привязки Telegram аккаунта"""
+
     # Проверяем, не привязан ли уже аккаунт
     try:
         telegram_user = request.user.telegram_profile
@@ -88,15 +72,31 @@ def link_telegram(request):
     except TelegramUser.DoesNotExist:
         pass
 
-    # Генерируем токен для привязки
-    token = secrets.token_urlsafe(32)
-    request.session['link_token'] = token
-    request.session['link_expires'] = (timezone.now() + timedelta(minutes=10)).timestamp()
+    if request.method == 'POST':
+        # Создаем новый токен при POST запросе
+        link_token_obj = LinkToken.create_token(request.user)
+        token = link_token_obj.token
+        messages.info(request, 'Новый токен создан! Отправьте команду боту в течение 10 минут.')
+    else:
+        # Получаем существующий токен или создаем новый
+        existing_token = LinkToken.objects.filter(
+            user=request.user,
+            is_used=False,
+            expires_at__gt=timezone.now()
+        ).first()
 
-    bot_username = "your_bot_username"  # Заменить на реальное имя бота
+        if existing_token and existing_token.is_valid:
+            token = existing_token.token
+        else:
+            link_token_obj = LinkToken.create_token(request.user)
+            token = link_token_obj.token
+
+    # Получаем имя бота из настроек или используем значение по умолчанию
+    bot_username = getattr(settings, 'TELEGRAM_BOT_USERNAME', 'linguatracking_bot')
 
     context = {
         'token': token,
+        'user': request.user,
         'bot_username': bot_username,
         'link_command': f"/link {token}"
     }
@@ -105,17 +105,88 @@ def link_telegram(request):
 
 
 def confirm_link(request, token):
-    session_token = request.session.get('link_token')
-    expires = request.session.get('link_expires')
+    """Подтверждение привязки (legacy функция)"""
+    try:
+        link_token = LinkToken.objects.get(token=token)
 
-    if not session_token or session_token != token:
+        if link_token.is_used:
+            messages.success(request, 'Аккаунт уже привязан!')
+        elif link_token.is_expired:
+            messages.error(request, 'Токен истек. Получите новый.')
+        else:
+            messages.info(request, 'Токен действителен. Отправьте команду /link боту в Telegram.')
+
+    except LinkToken.DoesNotExist:
         messages.error(request, 'Неверный токен привязки')
+
+    return redirect('cards:card_list')
+
+
+@login_required
+def unlink_telegram(request):
+    """Страница отвязки Telegram аккаунта"""
+
+    try:
+        telegram_user = request.user.telegram_profile
+    except TelegramUser.DoesNotExist:
+        messages.error(request, 'Ваш аккаунт не привязан к Telegram')
         return redirect('cards:card_list')
 
-    if not expires or datetime.now().timestamp() > expires:
-        messages.error(request, 'Токен истек. Попробуйте еще раз')
-        return redirect('telegram_bot:link_telegram')
+    if request.method == 'POST':
+        try:
+            # Логируем отвязку
+            BotMessage.objects.create(
+                telegram_user=telegram_user,
+                message_type="unlink_web",
+                content=f"Отвязка через веб-интерфейс от {request.user.username}"
+            )
 
-    # Токен валиден, ждем подтверждения из Telegram
-    messages.success(request, 'Токен подтвержден! Теперь отправьте команду боту в Telegram')
-    return redirect('cards:card_list')
+            # Деактивируем все токены этого пользователя
+            LinkToken.objects.filter(user=request.user).update(is_used=True)
+
+            # Удаляем связь
+            telegram_id = telegram_user.telegram_id
+            username = telegram_user.username or str(telegram_user.telegram_id)
+            telegram_user.delete()
+
+            messages.success(
+                request,
+                f'Telegram аккаунт @{username} успешно отвязан от вашего аккаунта!'
+            )
+
+        except Exception as e:
+            messages.error(request, f'Ошибка при отвязке: {str(e)}')
+
+        return redirect('cards:card_list')
+
+    return render(request, 'telegram_bot/unlink_account.html', {
+        'telegram_user': telegram_user
+    })
+
+
+def bot_info(request):
+    """Информация о боте"""
+    try:
+        stats = {
+            'users_count': TelegramUser.objects.count(),
+            'active_users': TelegramUser.objects.filter(is_active=True).count(),
+            'pending_links': LinkToken.objects.filter(is_used=False, expires_at__gt=timezone.now()).count(),
+            'total_tokens': LinkToken.objects.count(),
+            'used_tokens': LinkToken.objects.filter(is_used=True).count(),
+        }
+
+        if BOT_AVAILABLE:
+            stats['bot_available'] = True
+        else:
+            stats['bot_available'] = False
+
+    except Exception as e:
+        stats = {
+            'error': str(e),
+            'users_count': 0,
+            'active_users': 0,
+            'pending_links': 0,
+            'bot_available': False
+        }
+
+    return JsonResponse(stats)

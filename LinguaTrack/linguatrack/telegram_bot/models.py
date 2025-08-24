@@ -1,5 +1,8 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+from datetime import timedelta
+import secrets
 
 
 class TelegramUser(models.Model):
@@ -10,7 +13,6 @@ class TelegramUser(models.Model):
     last_name = models.CharField('Фамилия', max_length=100, blank=True)
     language_code = models.CharField('Язык', max_length=10, default='ru')
 
-    # Настройки уведомлений
     notifications_enabled = models.BooleanField('Уведомления включены', default=True)
     reminder_time = models.TimeField('Время напоминаний', default='18:00')
     timezone = models.CharField('Часовой пояс', max_length=50, default='Europe/Moscow')
@@ -37,3 +39,50 @@ class BotMessage(models.Model):
         verbose_name = 'Сообщение бота'
         verbose_name_plural = 'Сообщения бота'
         ordering = ['-sent_at']
+
+
+class LinkToken(models.Model):
+    token = models.CharField('Токен', max_length=100, unique=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField('Создан', auto_now_add=True)
+    expires_at = models.DateTimeField('Истекает')
+    is_used = models.BooleanField('Использован', default=False)
+    telegram_id = models.BigIntegerField('Telegram ID', null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Токен привязки'
+        verbose_name_plural = 'Токены привязки'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Токен для {self.user.username}: {self.token[:8]}..."
+
+    @property
+    def is_expired(self):
+        """Проверка истечения токена"""
+        return timezone.now() > self.expires_at
+
+    @property
+    def is_valid(self):
+        """Проверка действительности токена"""
+        return not self.is_used and not self.is_expired
+
+    def use_token(self, telegram_id):
+        """Отметить токен как использованный"""
+        self.is_used = True
+        self.telegram_id = telegram_id
+        self.save()
+
+    @classmethod
+    def create_token(cls, user):
+        """Создать новый токен для пользователя"""
+        # Удаляем старые неиспользованные токены
+        cls.objects.filter(user=user, is_used=False).delete()
+
+        # Создаем новый токен
+        token = secrets.token_urlsafe(32)
+        return cls.objects.create(
+            user=user,
+            token=token,
+            expires_at=timezone.now() + timedelta(minutes=10)
+        )

@@ -9,6 +9,47 @@ import time
 from .models import Card, Schedule, StudySession, UserStats, AudioFile
 from .forms import CardForm, StudyForm
 
+from django.contrib.auth import login, authenticate
+from django.contrib.auth.forms import UserCreationForm
+from django.contrib.auth.models import User
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from django.views.decorators.csrf import csrf_exempt
+
+
+def register_view(request):
+    if request.method == 'POST':
+        form = UserCreationForm(request.POST)
+        if form.is_valid():
+            user = form.save()
+            username = form.cleaned_data.get('username')
+            messages.success(request, f'Аккаунт создан для {username}!')
+
+            # Автоматический вход после регистрации
+            login(request, user)
+            return redirect('cards:card_list')
+    else:
+        form = UserCreationForm()
+
+    return render(request, 'registration/register.html', {'form': form})
+
+
+def custom_login_view(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(request, username=username, password=password)
+
+        if user is not None:
+            login(request, user)
+            messages.success(request, f'Добро пожаловать, {username}!')
+            return redirect('cards:card_list')
+        else:
+            messages.error(request, 'Неверное имя пользователя или пароль')
+
+    return render(request, 'registration/login.html')
+
+
 # Импорт с обработкой ошибок для Telegram
 try:
     from telegram_bot.models import TelegramUser

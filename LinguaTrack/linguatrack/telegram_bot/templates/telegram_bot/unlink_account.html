@@ -1,0 +1,74 @@
+{% extends 'cards/base.html' %}
+
+{% block title %}Отвязать Telegram - LinguaTrack{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card border-warning">
+            <div class="card-header bg-warning text-dark">
+                <h3>🔓 Отвязать Telegram аккаунт</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h5>👤 Текущая привязка:</h5>
+                    <p><strong>Сайт:</strong> {{ user.username }}</p>
+                    <p><strong>Telegram:</strong> @{{ telegram_user.username|default:telegram_user.telegram_id }}</p>
+                    <p><strong>Привязан:</strong> {{ telegram_user.created_at|date:"d.m.Y H:i" }}</p>
+                </div>
+
+                <div class="alert alert-warning">
+                    <h5>⚠️ Что произойдет при отвязке:</h5>
+                    <ul>
+                        <li>Telegram бот потеряет доступ к вашим карточкам</li>
+                        <li>Уведомления в Telegram будут отключены</li>
+                        <li>Для повторной привязки потребуется новый токен</li>
+                        <li><strong>Ваши карточки на сайте останутся без изменений</strong></li>
+                    </ul>
+                </div>
+
+                <div class="alert alert-danger">
+                    <h5>🔥 Подтверждение действия</h5>
+                    <p>Это действие нельзя отменить. Вы уверены, что хотите отвязать Telegram аккаунт?</p>
+                    
+                    <form method="post" onsubmit="return confirm('Вы точно хотите отвязать Telegram аккаунт?');">
+                        {% csrf_token %}
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <a href="{% url 'cards:card_list' %}" class="btn btn-secondary">
+                                ⬅️ Отмена
+                            </a>
+                            <button type="submit" class="btn btn-danger">
+                                🔓 Отвязать аккаунт
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="alert alert-light">
+                    <h6>💡 Альтернативы:</h6>
+                    <ul>
+                        <li><strong>Отключить уведомления:</strong> используйте /settings в боте</li>
+                        <li><strong>Временно деактивировать:</strong> заблокируйте бота в Telegram</li>
+                        <li><strong>Сменить аккаунт:</strong> создайте новый токен для привязки к другому аккаунту</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Дополнительное подтверждение для критичного действия
+document.querySelector('form').addEventListener('submit', function(e) {
+    const confirmed = confirm(
+        'ВНИМАНИЕ!\n\n' +
+        'Это действие отвяжет ваш Telegram аккаунт от LinguaTrack.\n\n' +
+        'Вы точно хотите продолжить?'
+    );
+    
+    if (!confirmed) {
+        e.preventDefault();
+    }
+});
+</script>
+{% endblock %}
