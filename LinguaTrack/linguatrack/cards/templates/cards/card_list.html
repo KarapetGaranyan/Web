@@ -43,6 +43,9 @@
                 <a href="{% url 'cards:card_create' %}" class="btn btn-success">
                     ➕ Добавить карточку
                 </a>
+                <a href="{% url 'cards:import_excel' %}" class="btn btn-info">
+                    📊 Импорт из Excel
+                </a>
                 {% if due_cards_count > 0 %}
                     <a href="{% url 'cards:smart_study' %}" class="btn btn-primary">
                         🧠 Умное изучение ({{ due_cards_count }})
@@ -83,14 +86,49 @@
             </div>
         </form>
 
+        <!-- Панель массовых действий -->
+        {% if cards %}
+        <div id="bulk-actions" class="alert alert-light border d-none">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <span id="selected-count">0</span> карточек выбрано
+                </div>
+                <div class="col-md-6 text-end">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="selectAll()">
+                        Выбрать все
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                        Снять выделение
+                    </button>
+                    <button type="button" class="btn btn-sm btn-danger" onclick="confirmBulkDelete()">
+                        🗑️ Удалить выбранные
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Форма для массового удаления -->
+        <form id="bulk-delete-form" method="post" action="{% url 'cards:bulk_delete_cards' %}" style="display: none;">
+            {% csrf_token %}
+            <div id="hidden-inputs"></div>
+        </form>
+        {% endif %}
+
         <!-- Список карточек -->
         {% if cards %}
             <div class="row">
                 {% for card in cards %}
                     <div class="col-md-6 col-lg-4 mb-4">
-                        <div class="card h-100 card-hover
+                        <div class="card h-100 card-hover card-selectable
                             {% if card.is_due_for_review %}border-warning{% endif %}
-                            {% if card.is_learned %}border-success{% endif %}">
+                            {% if card.is_learned %}border-success{% endif %}"
+                            data-card-id="{{ card.id }}">
+
+                            <!-- Чекбокс для выбора -->
+                            <div class="card-checkbox">
+                                <input type="checkbox" class="form-check-input card-select"
+                                       value="{{ card.id }}" onchange="updateSelection()">
+                            </div>
 
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <div>
@@ -178,32 +216,6 @@
                     </div>
                 {% endfor %}
             </div>
-
-            <!-- Пагинация (если нужна) -->
-            {% comment %}
-            {% if cards.has_other_pages %}
-                <nav aria-label="Пагинация карточек">
-                    <ul class="pagination justify-content-center">
-                        {% if cards.has_previous %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ cards.previous_page_number }}">Предыдущая</a>
-                            </li>
-                        {% endif %}
-
-                        <li class="page-item active">
-                            <span class="page-link">{{ cards.number }} из {{ cards.paginator.num_pages }}</span>
-                        </li>
-
-                        {% if cards.has_next %}
-                            <li class="page-item">
-                                <a class="page-link" href="?page={{ cards.next_page_number }}">Следующая</a>
-                            </li>
-                        {% endif %}
-                    </ul>
-                </nav>
-            {% endif %}
-            {% endcomment %}
-
         {% else %}
             <div class="text-center py-5">
                 <div class="mb-4">
@@ -298,9 +310,25 @@
                 <a href="{% url 'cards:card_create' %}" class="btn btn-success">
                     ➕ Новая карточка
                 </a>
+                <a href="{% url 'cards:import_excel' %}" class="btn btn-info">
+                    📊 Импорт из Excel
+                </a>
                 <a href="{% url 'cards:study_results' %}" class="btn btn-outline-info">
                     📈 Подробная статистика
                 </a>
+
+                <!-- Массовые действия -->
+                <hr class="my-2">
+                <small class="text-muted text-center">Массовые действия:</small>
+                <button type="button" class="btn btn-outline-primary btn-sm" onclick="selectAll()">
+                    ☑️ Выбрать все
+                </button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="clearSelection()">
+                    ⬜ Снять выделение
+                </button>
+                <button type="button" class="btn btn-outline-danger btn-sm" onclick="confirmBulkDelete()">
+                    🗑️ Удалить выбранные
+                </button>
             </div>
         </div>
 
@@ -367,9 +395,80 @@ function playAudio(cardId) {
     }
 }
 
-// Подсказки для пользователей
+// Функции для массового выбора
+function updateSelection() {
+    const checkboxes = document.querySelectorAll('.card-select:checked');
+    const count = checkboxes.length;
+    const bulkActions = document.getElementById('bulk-actions');
+    const selectedCount = document.getElementById('selected-count');
+
+    selectedCount.textContent = count;
+
+    if (count > 0) {
+        bulkActions.classList.remove('d-none');
+    } else {
+        bulkActions.classList.add('d-none');
+    }
+
+    // Подсвечиваем выбранные карточки
+    document.querySelectorAll('.card-selectable').forEach(card => {
+        const checkbox = card.querySelector('.card-select');
+        if (checkbox.checked) {
+            card.classList.add('border-primary', 'bg-light');
+        } else {
+            card.classList.remove('border-primary', 'bg-light');
+        }
+    });
+}
+
+function selectAll() {
+    document.querySelectorAll('.card-select').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateSelection();
+}
+
+function clearSelection() {
+    document.querySelectorAll('.card-select').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelection();
+}
+
+function confirmBulkDelete() {
+    const checkboxes = document.querySelectorAll('.card-select:checked');
+    const count = checkboxes.length;
+
+    if (count === 0) {
+        alert('Выберите карточки для удаления');
+        return;
+    }
+
+    if (confirm(`Вы уверены, что хотите удалить ${count} карточек?\n\nЭто действие нельзя отменить!`)) {
+        const form = document.getElementById('bulk-delete-form');
+        const hiddenInputs = document.getElementById('hidden-inputs');
+
+        // Очищаем предыдущие hidden inputs
+        hiddenInputs.innerHTML = '';
+
+        // Добавляем ID выбранных карточек
+        checkboxes.forEach(checkbox => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'selected_cards';
+            input.value = checkbox.value;
+            hiddenInputs.appendChild(input);
+        });
+
+        form.submit();
+    }
+}
+
+// Инициализация при загрузке страницы
 document.addEventListener('DOMContentLoaded', function() {
-    // Показать подсказку для новых пользователей
+    updateSelection();
+
+    // Подсказки для новых пользователей
     const totalCards = {{ stats.total_cards }};
     const isLinked = {% if user.telegram_profile %}true{% else %}false{% endif %};
 
@@ -407,6 +506,26 @@ document.addEventListener('DOMContentLoaded', function() {
     margin-bottom: 20px;
 }
 
+.card-selectable {
+    position: relative;
+    cursor: pointer;
+}
+
+.card-checkbox {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 10;
+    background: white;
+    border-radius: 3px;
+    padding: 2px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.card-selectable.border-primary {
+    border-width: 2px !important;
+}
+
 .card-hover:hover {
     transform: translateY(-2px);
     transition: all 0.3s ease;
@@ -415,6 +534,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
 .badge-difficulty {
     font-size: 0.8rem;
+}
+
+#bulk-actions {
+    position: sticky;
+    top: 20px;
+    z-index: 100;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .progress-circle {
@@ -427,6 +564,15 @@ document.addEventListener('DOMContentLoaded', function() {
     justify-content: center;
     color: #333;
     font-weight: bold;
+}
+
+.card-select {
+    transform: scale(1.2);
+}
+
+.card-select:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
 }
 </style>
 {% endblock %}

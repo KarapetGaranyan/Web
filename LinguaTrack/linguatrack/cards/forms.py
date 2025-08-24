@@ -37,3 +37,13 @@ class StudyForm(forms.Form):
         }),
         label='Ваш ответ'
     )
+
+class ExcelImportForm(forms.Form):
+    excel_file = forms.FileField(
+        label='Excel файл',
+        help_text='Загрузите .xlsx файл с колонками: слово, перевод',
+        widget=forms.FileInput(attrs={
+            'class': 'form-control',
+            'accept': '.xlsx,.xls'
+        })
+    )

@@ -20,4 +20,9 @@ urlpatterns = [
     # Аудио
     path('<int:pk>/generate-audio/', views.generate_audio_view, name='generate_audio'),
     path('<int:pk>/play-audio/', views.play_audio, name='play_audio'),
+
+    # Excel
+    path('import/', views.import_excel, name='import_excel'),
+    # Delete
+    path('bulk-delete/', views.bulk_delete_cards, name='bulk_delete_cards'),
 ]

@@ -16,6 +16,9 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from django.views.decorators.csrf import csrf_exempt
 
+import openpyxl
+from django.contrib import messages
+from .forms import ExcelImportForm
 
 def register_view(request):
     if request.method == 'POST':
@@ -478,3 +481,79 @@ if TELEGRAM_AVAILABLE:
         except TelegramUser.DoesNotExist:
             messages.info(request, 'Сначала подключите Telegram аккаунт')
             return redirect('/telegram/link/')
+
+@login_required
+def import_excel(request):
+    if request.method == 'POST':
+        form = ExcelImportForm(request.POST, request.FILES)
+        if form.is_valid():
+            excel_file = request.FILES['excel_file']
+
+            try:
+                # Читаем Excel файл
+                workbook = openpyxl.load_workbook(excel_file)
+                sheet = workbook.active
+
+                created_count = 0
+                skipped_count = 0
+
+                # Читаем строки, начиная со второй (пропускаем заголовок)
+                for row in sheet.iter_rows(min_row=2, values_only=True):
+                    if len(row) >= 2 and row[0] and row[1]:
+                        word = str(row[0]).strip()
+                        translation = str(row[1]).strip()
+
+                        # Проверяем, существует ли уже такая карточка
+                        if not Card.objects.filter(user=request.user, word__iexact=word).exists():
+                            Card.objects.create(
+                                user=request.user,
+                                word=word,
+                                translation=translation,
+                                example=str(row[2]).strip() if len(row) > 2 and row[2] else '',
+                                difficulty='beginner'
+                            )
+                            created_count += 1
+                        else:
+                            skipped_count += 1
+
+                messages.success(
+                    request,
+                    f'✅ Импорт завершен! Создано: {created_count}, пропущено: {skipped_count}'
+                )
+
+            except Exception as e:
+                messages.error(request, f'❌ Ошибка импорта: {str(e)}')
+
+            return redirect('cards:card_list')
+    else:
+        form = ExcelImportForm()
+
+    return render(request, 'cards/import_excel.html', {'form': form})
+
+
+@login_required
+def bulk_delete_cards(request):
+    """Массовое удаление выбранных карточек"""
+    if request.method == 'POST':
+        card_ids = request.POST.getlist('selected_cards')
+
+        if card_ids:
+            # Удаляем только карточки текущего пользователя
+            deleted_count = Card.objects.filter(
+                id__in=card_ids,
+                user=request.user
+            ).count()
+
+            Card.objects.filter(
+                id__in=card_ids,
+                user=request.user
+            ).delete()
+
+            messages.success(
+                request,
+                f'✅ Удалено {deleted_count} карточек'
+            )
+        else:
+            messages.warning(request, '⚠️ Не выбрано ни одной карточки')
+
+    return redirect('cards:card_list')

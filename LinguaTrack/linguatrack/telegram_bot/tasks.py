@@ -114,3 +114,4 @@ async def send_weekly_stats_to_user(telegram_user, week_sessions):
         )
     except Exception as e:
         print(f"Ошибка отправки статистики пользователю {telegram_user.telegram_id}: {e}")
+

@@ -1,0 +1,100 @@
+{% extends 'cards/base.html' %}
+
+{% block title %}Импорт из Excel - LinguaTrack{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h3>📊 Импорт карточек из Excel</h3>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h5>📋 Формат файла:</h5>
+                    <ul class="mb-0">
+                        <li><strong>Колонка A:</strong> Слово на изучаемом языке</li>
+                        <li><strong>Колонка B:</strong> Перевод</li>
+                        <li><strong>Колонка C:</strong> Пример (необязательно)</li>
+                    </ul>
+                    <hr>
+                    <small>
+                        <strong>Пример:</strong><br>
+                        A1: word | B1: слово | C1: This is a word<br>
+                        A2: hello | B2: привет | C2: Hello, world!
+                    </small>
+                </div>
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.excel_file.id_for_label }}" class="form-label">
+                            {{ form.excel_file.label }}
+                        </label>
+                        {{ form.excel_file }}
+                        {% if form.excel_file.help_text %}
+                            <div class="form-text">{{ form.excel_file.help_text }}</div>
+                        {% endif %}
+                        {% if form.excel_file.errors %}
+                            <div class="text-danger">{{ form.excel_file.errors }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="alert alert-warning">
+                        <strong>⚠️ Внимание:</strong>
+                        <ul class="mb-0">
+                            <li>Существующие карточки будут пропущены</li>
+                            <li>Первая строка считается заголовком</li>
+                            <li>Поддерживаются форматы .xlsx и .xls</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'cards:card_list' %}" class="btn btn-secondary">
+                            ⬅️ Отмена
+                        </a>
+                        <button type="submit" class="btn btn-success">
+                            📊 Импортировать карточки
+                        </button>
+                    </div>
+                </form>
+
+                <hr>
+                
+                <div class="text-center">
+                    <h6>💡 Пример Excel файла:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>A (Слово)</th>
+                                    <th>B (Перевод)</th>
+                                    <th>C (Пример)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>apple</td>
+                                    <td>яблоко</td>
+                                    <td>I eat an apple</td>
+                                </tr>
+                                <tr>
+                                    <td>water</td>
+                                    <td>вода</td>
+                                    <td>Drink water</td>
+                                </tr>
+                                <tr>
+                                    <td>book</td>
+                                    <td>книга</td>
+                                    <td>Read a book</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

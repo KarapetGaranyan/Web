@@ -18,7 +18,12 @@ if sys.platform == 'win32':
     )
 
 app.config_from_object('django.conf:settings', namespace='CELERY')
-app.autodiscover_tasks()
+
+# ИСПРАВЛЕНИЕ: Явно указываем где искать задачи
+app.autodiscover_tasks(['telegram_bot', 'cards'])
+
+# Альтернативный способ - автодискавери всех приложений Django
+# app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
 
 # Периодические задачи
 app.conf.beat_schedule = {
