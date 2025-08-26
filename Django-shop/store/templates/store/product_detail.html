@@ -1,0 +1,97 @@
+{% extends 'store/base.html' %}
+
+{% block title %}{{ product.name }} - Интернет-магазин{% endblock %}
+
+{% block content %}
+{% csrf_token %}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{% url 'store:product_list' %}">Товары</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'store:product_list_by_category' product.category.slug %}">{{ product.category.name }}</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
+    </ol>
+</nav>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <img src="{{ product.image.url }}" class="card-img-top" alt="{{ product.name }}" style="max-height: 400px; object-fit: cover;">
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h2 class="card-title">{{ product.name }}</h2>
+                <p class="text-muted">{{ product.category.name }}</p>
+                
+                <div class="mb-3">
+                    <span class="h3 text-primary">{{ product.price }} ₽</span>
+                </div>
+                
+                <div class="mb-3">
+                    <p class="card-text">{{ product.description }}</p>
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Остаток:</strong> 
+                    {% if product.stock > 0 %}
+                        <span class="text-success">{{ product.stock }} шт.</span>
+                    {% else %}
+                        <span class="text-danger">Нет в наличии</span>
+                    {% endif %}
+                </div>
+                
+                <div class="mb-3">
+                    <strong>Статус:</strong> 
+                    {% if product.available %}
+                        <span class="badge bg-success">Доступен</span>
+                    {% else %}
+                        <span class="badge bg-danger">Недоступен</span>
+                    {% endif %}
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button onclick="addToCart({{ product.id }})" 
+                            class="btn btn-success btn-lg" 
+                            {% if not product.available or product.stock == 0 %}disabled{% endif %}>
+                        <i class="fas fa-cart-plus me-2"></i>
+                        {% if product.available and product.stock > 0 %}
+                            Добавить в корзину
+                        {% else %}
+                            Нет в наличии
+                        {% endif %}
+                    </button>
+                    
+                    <a href="{% url 'store:product_list' %}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left me-2"></i>Вернуться к товарам
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Информация о товаре</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Категория:</strong> {{ product.category.name }}</p>
+                        <p><strong>Дата добавления:</strong> {{ product.created|date:"d.m.Y" }}</p>
+                    </div>
+                    <div class="col-md-6">
+                        <p><strong>Последнее обновление:</strong> {{ product.updated|date:"d.m.Y" }}</p>
+                        <p><strong>Артикул:</strong> #{{ product.id }}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

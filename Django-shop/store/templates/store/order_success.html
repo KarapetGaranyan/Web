@@ -1,0 +1,235 @@
+{% extends 'store/base.html' %}
+
+{% block title %}Заказ оформлен - Интернет-магазин{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+    <div class="col-md-10">
+        <div class="card">
+            <div class="card-body">
+
+                <!-- Заголовок в зависимости от статуса -->
+                <div class="text-center mb-4">
+                    {% if order.status == 'cancelled' %}
+                        <i class="fas fa-times-circle fa-4x text-danger mb-3"></i>
+                        <h2 class="text-danger">Заказ отменен</h2>
+                        <p class="fs-5 text-muted">Заказ #{{ order.id }} был отменен</p>
+                    {% elif order.status == 'paid' %}
+                        <i class="fas fa-credit-card fa-4x text-success mb-3"></i>
+                        <h2 class="text-success">Заказ оплачен!</h2>
+                        <p class="fs-5 text-muted">Заказ #{{ order.id }} успешно оплачен</p>
+                    {% elif order.status == 'delivered' %}
+                        <i class="fas fa-check-circle fa-4x text-success mb-3"></i>
+                        <h2 class="text-success">Заказ доставлен!</h2>
+                        <p class="fs-5 text-muted">Заказ #{{ order.id }} успешно доставлен</p>
+                    {% else %}
+                        <i class="fas fa-shopping-cart fa-4x text-primary mb-3"></i>
+                        <h2 class="text-primary">Заказ оформлен!</h2>
+                        <p class="fs-5 text-muted">Ваш заказ #{{ order.id }} принят в обработку</p>
+                    {% endif %}
+                </div>
+
+                <!-- Основная информация о заказе -->
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Информация о заказе</h5>
+                            </div>
+                            <div class="card-body">
+                                <table class="table table-borderless">
+                                    <tr>
+                                        <td><strong>Номер заказа:</strong></td>
+                                        <td>#{{ order.id }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Дата заказа:</strong></td>
+                                        <td>{{ order.created|date:"d.m.Y H:i" }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Статус:</strong></td>
+                                        <td>
+                                            <span class="badge bg-{% if order.status == 'pending' %}warning{% elif order.status == 'paid' %}success{% elif order.status == 'shipped' %}primary{% elif order.status == 'delivered' %}success{% elif order.status == 'cancelled' %}danger{% else %}secondary{% endif %} fs-6">
+                                                {{ order.get_status_display }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Общая сумма:</strong></td>
+                                        <td><span class="h5 text-primary">{{ order.total_amount }} ₽</span></td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-user me-2"></i>Данные клиента</h5>
+                            </div>
+                            <div class="card-body">
+                                {% if order.user %}
+                                    <p><strong>Пользователь:</strong> {{ order.user.username }}</p>
+                                    {% if order.user.get_full_name %}
+                                        <p><strong>Имя:</strong> {{ order.user.get_full_name }}</p>
+                                    {% endif %}
+                                    {% if order.user.phone_number %}
+                                        <p><strong>Телефон:</strong> {{ order.user.phone_number }}</p>
+                                    {% endif %}
+                                    {% if order.user.email %}
+                                        <p><strong>Email:</strong> {{ order.user.email }}</p>
+                                    {% endif %}
+                                {% else %}
+                                    <p><strong>Имя:</strong> {{ order.customer_name|default:"Не указано" }}</p>
+                                    <p><strong>Email:</strong> {{ order.customer_email|default:"Не указан" }}</p>
+                                    <p><strong>Телефон:</strong> {{ order.customer_phone|default:"Не указан" }}</p>
+                                {% endif %}
+                                <hr>
+                                <p><strong>Адрес доставки:</strong></p>
+                                <p class="text-muted">{{ order.address }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Состав заказа -->
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Состав заказа</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Товар</th>
+                                        <th>Цена за единицу</th>
+                                        <th>Количество</th>
+                                        <th>Сумма</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for item in order.items.all %}
+                                        <tr>
+                                            <td>
+                                                <div class="d-flex align-items-center">
+                                                    <img src="{{ item.product.image.url }}"
+                                                         alt="{{ item.product.name }}"
+                                                         style="width: 50px; height: 50px; object-fit: cover;"
+                                                         class="me-3">
+                                                    <div>
+                                                        <h6 class="mb-0">{{ item.product.name }}</h6>
+                                                        <small class="text-muted">{{ item.product.category.name }}</small>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>{{ item.price }} ₽</td>
+                                            <td>{{ item.quantity }} шт.</td>
+                                            <td><strong>{{ item.price|floatformat:2 }} ₽</strong></td>
+                                        </tr>
+                                    {% endfor %}
+                                </tbody>
+                                <tfoot class="table-light">
+                                    <tr>
+                                        <th colspan="3" class="text-end">Итого:</th>
+                                        <th><strong class="text-primary h5">{{ order.total_amount }} ₽</strong></th>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Статус заказа с подробным описанием -->
+                <div class="alert alert-{% if order.status == 'pending' %}warning{% elif order.status == 'paid' %}success{% elif order.status == 'shipped' %}primary{% elif order.status == 'delivered' %}success{% elif order.status == 'cancelled' %}danger{% else %}secondary{% endif %} mt-4">
+                    {% if order.status == 'pending' %}
+                        <h6><i class="fas fa-clock me-2"></i>Ожидает оплаты</h6>
+                        <p class="mb-0">Ваш заказ принят и ожидает оплаты. Товары зарезервированы для вас. Нажмите кнопку "Оплатить заказ" ниже.</p>
+                    {% elif order.status == 'paid' %}
+                        <h6><i class="fas fa-credit-card me-2"></i>Заказ оплачен</h6>
+                        <p class="mb-0">Платеж успешно получен! Заказ передан в обработку. Товары будут подготовлены к отправке в течение 1-2 рабочих дней.</p>
+                    {% elif order.status == 'shipped' %}
+                        <h6><i class="fas fa-shipping-fast me-2"></i>Заказ отправлен</h6>
+                        <p class="mb-0">Ваш заказ отправлен и находится в пути. Ожидайте доставку по указанному адресу в течение 3-5 рабочих дней.</p>
+                    {% elif order.status == 'delivered' %}
+                        <h6><i class="fas fa-check-circle me-2"></i>Заказ доставлен</h6>
+                        <p class="mb-0">Заказ успешно доставлен! Спасибо за покупку в нашем магазине. Надеемся увидеть вас снова!</p>
+                    {% elif order.status == 'cancelled' %}
+                        <h6><i class="fas fa-times-circle me-2"></i>Заказ отменен</h6>
+                        <p class="mb-0">Заказ отменен. Все товары возвращены на склад и снова доступны для покупки.</p>
+                    {% endif %}
+                </div>
+
+                <!-- Действия пользователя -->
+                <div class="text-center mt-4">
+
+                    <!-- Кнопка оплаты (только для неоплаченных заказов) -->
+                    {% if order.status == 'pending' %}
+                        <a href="{% url 'store:create_payment' order.id %}" class="btn btn-success btn-lg me-2">
+                            <i class="fas fa-credit-card me-2"></i>Оплатить заказ ({{ order.total_amount }} ₽)
+                        </a>
+                    {% endif %}
+
+                    <!-- Кнопка отмены (только для pending и paid статусов) -->
+                    {% if order.status in 'pending,paid' %}
+                        <a href="{% url 'store:cancel_order' order.id %}" class="btn btn-outline-danger me-2">
+                            <i class="fas fa-times me-2"></i>Отменить заказ
+                        </a>
+                    {% elif order.status == 'shipped' %}
+                        <div class="alert alert-info mt-3">
+                            <i class="fas fa-shipping-fast me-2"></i>
+                            Заказ отправлен и не может быть отменен
+                        </div>
+                    {% elif order.status == 'delivered' %}
+                        <div class="alert alert-success mt-3">
+                            <i class="fas fa-check-circle me-2"></i>
+                            Заказ доставлен
+                        </div>
+                    {% endif %}
+
+                    <hr>
+
+                    <!-- Дополнительные действия -->
+                    <div class="d-flex justify-content-center gap-2 flex-wrap">
+                        <a href="{% url 'store:product_list' %}" class="btn btn-outline-primary">
+                            <i class="fas fa-shopping-bag me-2"></i>Продолжить покупки
+                        </a>
+
+                        <!-- Профиль пользователя -->
+                        {% if order.user %}
+                            <a href="{% url 'accounts:profile' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-user me-2"></i>Мой кабинет
+                            </a>
+                        {% else %}
+                            <a href="{% url 'accounts:register' %}" class="btn btn-outline-secondary">
+                                <i class="fas fa-user-plus me-2"></i>Создать аккаунт
+                            </a>
+                        {% endif %}
+                    </div>
+
+                </div>
+
+                <!-- Помощь и контакты -->
+                <div class="alert alert-light mt-4">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-headset me-2"></i>Нужна помощь?</h6>
+                            <p class="mb-1"><i class="fas fa-phone me-2"></i>+7 (999) 123-45-67</p>
+                            <p class="mb-0"><i class="fas fa-envelope me-2"></i>support@shop.ru</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-truck me-2"></i>Доставка</h6>
+                            <p class="mb-1">• По Москве: 1-2 дня</p>
+                            <p class="mb-0">• По России: 3-7 дней</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

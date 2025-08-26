@@ -1,0 +1,144 @@
+{% extends 'store/base.html' %}
+
+{% block title %}Личный кабинет - {{ user.username }}{% endblock %}
+
+{% block content %}
+
+<div class="row">
+    <!-- Профиль пользователя -->
+    <div class="col-md-4">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-circle me-2"></i>Мой профиль
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <i class="fas fa-user-circle fa-4x text-info"></i>
+                    <h5 class="mt-2">{{ user.username }}</h5>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-3">
+                        <label class="form-label">Имя</label>
+                        <input type="text" name="first_name" class="form-control" value="{{ user.first_name }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Фамилия</label>
+                        <input type="text" name="last_name" class="form-control" value="{{ user.last_name }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" name="email" class="form-control" value="{{ user.email }}">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Телефон</label>
+                        <input type="tel" name="phone_number" class="form-control" value="{{ user.phone_number }}">
+                    </div>
+
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-2"></i>Сохранить
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Статистика -->
+        <div class="card mt-4">
+            <div class="card-header">
+                <h6 class="mb-0">
+                    <i class="fas fa-chart-bar me-2"></i>Статистика покупок
+                </h6>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 class="text-primary">{{ total_orders }}</h4>
+                        <small class="text-muted">Всего заказов</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-success">{{ total_spent }} ₽</h4>
+                        <small class="text-muted">Потрачено</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- История заказов -->
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-shopping-cart me-2"></i>Мои заказы
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if user_orders %}
+                    {% for order in user_orders %}
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between">
+                                <div>
+                                    <strong>Заказ #{{ order.id }}</strong>
+                                    <small class="text-muted ms-2">{{ order.created|date:"d.m.Y H:i" }}</small>
+                                </div>
+                                <div>
+                                    <span class="badge bg-{% if order.status == 'pending' %}warning{% elif order.status == 'paid' %}info{% elif order.status == 'shipped' %}primary{% elif order.status == 'delivered' %}success{% elif order.status == 'cancelled' %}danger{% endif %}">
+                                        {{ order.get_status_display }}
+                                    </span>
+                                    <span class="h6 text-primary ms-2">{{ order.total_amount }} ₽</span>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-8">
+                                        <strong>Товары:</strong>
+                                        {% for item in order.items.all %}
+                                            <div class="small">{{ item.product.name }} ({{ item.quantity }} шт.)</div>
+                                        {% endfor %}
+                                        <p class="mt-2"><strong>Адрес:</strong> {{ order.address|truncatechars:50 }}</p>
+                                    </div>
+                                    <div class="col-md-4 text-end">
+                                        <div class="d-grid gap-1">
+                                            <a href="{% url 'store:order_success' order.id %}" class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye me-1"></i>Подробнее
+                                            </a>
+                                            {% if order.status == 'pending' %}
+                                                <a href="{% url 'store:create_payment' order.id %}" class="btn btn-sm btn-success">
+                                                    <i class="fas fa-credit-card me-1"></i>Оплатить
+                                                </a>
+                                            {% endif %}
+                                            {% if order.status in 'pending,paid' %}
+                                                <a href="{% url 'store:cancel_order' order.id %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('Отменить заказ?')">
+                                                    <i class="fas fa-times me-1"></i>Отменить
+                                                </a>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">У вас пока нет заказов</h5>
+                        <a href="{% url 'store:product_list' %}" class="btn btn-primary">
+                            <i class="fas fa-shopping-bag me-2"></i>Перейти к товарам
+                        </a>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

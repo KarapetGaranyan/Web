@@ -1,0 +1,108 @@
+{% extends 'store/base.html' %}
+
+{% block title %}Демо-оплата заказа #{{ order.id }} - Интернет-магазин{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0">
+                    <i class="fas fa-credit-card me-2"></i>Демо-оплата заказа #{{ order.id }}
+                </h4>
+            </div>
+            <div class="card-body">
+                
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-info-circle me-2"></i>Это демонстрация</h5>
+                    <p class="mb-0">Поскольку используются тестовые ключи YooKassa, мы имитируем процесс оплаты. Выберите результат:</p>
+                </div>
+
+                <!-- Информация о заказе -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">Детали заказа</h6>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-6">
+                                <p><strong>Номер заказа:</strong> #{{ order.id }}</p>
+                                <p><strong>Дата:</strong> {{ order.created|date:"d.m.Y H:i" }}</p>
+                            </div>
+                            <div class="col-6">
+                                <p><strong>Сумма:</strong> <span class="h5 text-primary">{{ order.total_amount }} ₽</span></p>
+                                <p><strong>ID платежа:</strong> {{ demo_payment.payment_id }}</p>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <h6>Состав заказа:</h6>
+                        <ul class="list-unstyled">
+                            {% for item in order.items.all %}
+                                <li>{{ item.product.name }} - {{ item.quantity }} шт. × {{ item.price }} ₽</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Симуляция результатов оплаты -->
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="success">
+                            <button type="submit" class="btn btn-success btn-lg w-100">
+                                <i class="fas fa-check-circle me-2"></i>
+                                Имитировать<br>
+                                <small>УСПЕШНУЮ ОПЛАТУ</small>
+                            </button>
+                        </form>
+                        <small class="text-muted">Заказ будет помечен как "Оплачен"</small>
+                    </div>
+                    
+                    <div class="col-md-6 mb-3">
+                        <form method="post">
+                            {% csrf_token %}
+                            <input type="hidden" name="action" value="fail">
+                            <button type="submit" class="btn btn-danger btn-lg w-100">
+                                <i class="fas fa-times-circle me-2"></i>
+                                Имитировать<br>
+                                <small>ОТКЛОНЕНИЕ ОПЛАТЫ</small>
+                            </button>
+                        </form>
+                        <small class="text-muted">Заказ останется неоплаченным</small>
+                    </div>
+                </div>
+
+                <hr>
+
+                <!-- Информация о реальных тестовых картах -->
+                <div class="alert alert-secondary">
+                    <h6><i class="fas fa-credit-card me-2"></i>При использовании реальных ключей YooKassa:</h6>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>Успешная оплата:</strong><br>
+                            <code>5555 5555 5555 4477</code>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>Отклоненная оплата:</strong><br>
+                            <code>5555 5555 5555 4444</code>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Навигация -->
+                <div class="text-center">
+                    <a href="{% url 'store:order_success' order.id %}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Вернуться к заказу
+                    </a>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

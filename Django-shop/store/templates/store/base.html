@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Интернет-магазин{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .product-card {
+            transition: transform 0.2s;
+            height: 100%;
+        }
+        .product-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        .product-image {
+            height: 200px;
+            object-fit: cover;
+        }
+        .category-badge {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        .category-badge:hover {
+            transform: scale(1.05);
+            color: white;
+            text-decoration: none;
+        }
+        .cart-badge {
+            position: relative;
+        }
+        .cart-count {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #dc3545;
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .footer {
+            background: #343a40;
+            color: white;
+            padding: 2rem 0;
+            margin-top: 3rem;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container">
+            <a class="navbar-brand" href="{% url 'store:product_list' %}">
+                <i class="fas fa-shopping-cart me-2"></i>Магазин
+            </a>
+
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:product_list' %}">Товары</a>
+                    </li>
+                    {% for category in categories %}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{% url 'store:product_list_by_category' category.slug %}">
+                            {{ category.name }}
+                        </a>
+                    </li>
+                    {% endfor %}
+                </ul>
+
+                <ul class="navbar-nav">
+                    <!-- Корзина -->
+                    <li class="nav-item me-3">
+                        <a class="nav-link cart-badge" href="{% url 'store:cart_detail' %}">
+                            <i class="fas fa-shopping-bag"></i>
+                            <span class="cart-count" id="cart-count">
+                                {% if request.session.cart %}
+                                    {% for item in request.session.cart.values %}{{ item.quantity }}{% endfor %}
+                                {% else %}
+                                    0
+                                {% endif %}
+                            </span>
+                        </a>
+                    </li>
+
+                    <!-- Меню пользователя -->
+                    {% if user.is_authenticated %}
+                        <li class="nav-item dropdown">
+                            <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-user me-1"></i>{{ user.username }}
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'accounts:profile' %}">
+                                        <i class="fas fa-user-circle me-2"></i>Личный кабинет
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'accounts:logout' %}">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Выйти
+                                    </a>
+                                </li>
+                            </ul>
+                        </li>
+                    {% else %}
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'accounts:login' %}">
+                                <i class="fas fa-sign-in-alt me-1"></i>Войти
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="{% url 'accounts:register' %}">
+                                <i class="fas fa-user-plus me-1"></i>Регистрация
+                            </a>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container my-4">
+        <!-- Сообщения -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="alert alert-{{ message.tags|default:'info' }} alert-dismissible fade show" role="alert">
+                    {% if message.tags == 'error' %}
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                    {% elif message.tags == 'success' %}
+                        <i class="fas fa-check-circle me-2"></i>
+                    {% elif message.tags == 'warning' %}
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% else %}
+                        <i class="fas fa-info-circle me-2"></i>
+                    {% endif %}
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Закрыть"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        <!-- Основной контент -->
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <!-- Футер -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-4">
+                    <h5>О нас</h5>
+                    <p>Мы предлагаем широкий ассортимент качественных товаров по доступным ценам.</p>
+                </div>
+                <div class="col-md-4">
+                    <h5>Контакты</h5>
+                    <p><i class="fas fa-phone me-2"></i>+7 (999) 123-45-67</p>
+                    <p><i class="fas fa-envelope me-2"></i>info@shop.ru</p>
+                </div>
+                <div class="col-md-4">
+                    <h5>Полезные ссылки</h5>
+                    <ul class="list-unstyled">
+                        <li><a href="{% url 'store:product_list' %}" class="text-white-50">Каталог</a></li>
+                        {% if user.is_authenticated %}
+                            <li><a href="{% url 'accounts:profile' %}" class="text-white-50">Мой кабинет</a></li>
+                        {% else %}
+                            <li><a href="{% url 'accounts:login' %}" class="text-white-50">Войти</a></li>
+                            <li><a href="{% url 'accounts:register' %}" class="text-white-50">Регистрация</a></li>
+                        {% endif %}
+                        <li><a href="{% url 'store:cart_detail' %}" class="text-white-50">Корзина</a></li>
+                    </ul>
+                </div>
+            </div>
+            <hr>
+            <div class="row">
+                <div class="col-12 text-center">
+                    <p>&copy; 2024 Интернет-магазин. Все права защищены.</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Скрипты Bootstrap -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- CSRF токен -->
+    {% csrf_token %}
+
+    <!-- JavaScript для корзины -->
+    <script>
+    // Функция для добавления товара в корзину с улучшенными уведомлениями
+    function addToCart(productId, quantity = 1) {
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+        if (!csrfToken) {
+            console.error('CSRF токен не найден');
+            showNotification('Ошибка: не удается добавить товар', 'danger');
+            return;
+        }
+
+        // Показываем индикатор загрузки
+        showLoadingNotification('Добавление товара...');
+
+        fetch('{% url "store:add_to_cart" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken.value
+            },
+            body: JSON.stringify({
+                product_id: productId,
+                quantity: quantity
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            // Убираем индикатор загрузки
+            hideLoadingNotification();
+
+            if (data.success) {
+                // Обновляем счетчик корзины с анимацией
+                updateCartCount(data.cart_count);
+
+                // Показываем успешное уведомление с деталями
+                showSuccessNotification(data.message, {
+                    productName: data.product_name,
+                    quantity: data.quantity,
+                    totalPrice: data.total_price
+                });
+
+                // Анимация кнопки "Добавить в корзину"
+                animateAddToCartButton(productId);
+
+            } else {
+                showNotification(data.message, 'warning');
+            }
+        })
+        .catch(error => {
+            hideLoadingNotification();
+            console.error('Error:', error);
+            showNotification('Произошла ошибка при добавлении товара', 'danger');
+        });
+    }
+
+    // Функция для показа уведомления о загрузке
+    function showLoadingNotification(message) {
+        const existing = document.querySelector('.loading-notification');
+        if (existing) existing.remove();
+
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-info loading-notification position-fixed';
+        notification.style.cssText = `
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        `;
+        notification.innerHTML = `
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-2" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                ${message}
+            </div>
+        `;
+
+        document.body.appendChild(notification);
+    }
+
+    // Функция для скрытия уведомления о загрузке
+    function hideLoadingNotification() {
+        const notification = document.querySelector('.loading-notification');
+        if (notification) {
+            notification.remove();
+        }
+    }
+
+    // Функция для показа успешного уведомления с деталями
+    function showSuccessNotification(message, details = {}) {
+        const notification = document.createElement('div');
+        notification.className = 'alert alert-success alert-dismissible fade show position-fixed';
+        notification.style.cssText = `
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 350px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideInRight 0.5s ease-out;
+        `;
+
+        notification.innerHTML = `
+            <div class="d-flex">
+                <div class="me-3">
+                    <i class="fas fa-check-circle text-success fa-2x"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="alert-heading mb-1">Товар добавлен в корзину!</h6>
+                    <p class="mb-1">${message}</p>
+                    ${details.totalPrice ? `<small class="text-muted">Сумма: ${details.totalPrice} ₽</small>` : ''}
+                </div>
+            </div>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            <div class="mt-2">
+                <a href="{% url 'store:cart_detail' %}" class="btn btn-success btn-sm me-2">
+                    <i class="fas fa-shopping-cart me-1"></i>Перейти в корзину
+                </a>
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="alert">
+                    Продолжить покупки
+                </button>
+            </div>
+        `;
+
+        document.body.appendChild(notification);
+
+        // Автоматическое скрытие через 5 секунд
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideOutRight 0.5s ease-out';
+                setTimeout(() => notification.remove(), 500);
+            }
+        }, 5000);
+    }
+
+    // Функция для обычных уведомлений
+    function showNotification(message, type = 'info') {
+        const notification = document.createElement('div');
+        notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+        notification.style.cssText = `
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+            min-width: 300px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            animation: slideInRight 0.5s ease-out;
+        `;
+
+        const iconMap = {
+            'success': 'fas fa-check-circle',
+            'danger': 'fas fa-exclamation-circle',
+            'warning': 'fas fa-exclamation-triangle',
+            'info': 'fas fa-info-circle'
+        };
+
+        notification.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="${iconMap[type] || iconMap.info} me-2"></i>
+                ${message}
+                <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert"></button>
+            </div>
+        `;
+
+        document.body.appendChild(notification);
+
+        // Автоматическое скрытие через 3 секунды
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.style.animation = 'slideOutRight 0.5s ease-out';
+                setTimeout(() => notification.remove(), 500);
+            }
+        }, 3000);
+    }
+
+    // Функция для обновления счетчика корзины с анимацией
+    function updateCartCount(newCount) {
+        const cartCountElement = document.getElementById('cart-count');
+        if (cartCountElement) {
+            // Анимация увеличения
+            cartCountElement.style.transform = 'scale(1.5)';
+            cartCountElement.style.transition = 'transform 0.3s ease';
+
+            setTimeout(() => {
+                cartCountElement.textContent = newCount;
+                cartCountElement.style.transform = 'scale(1)';
+            }, 150);
+
+            // Добавляем класс для визуального выделения
+            cartCountElement.classList.add('bg-success');
+            setTimeout(() => {
+                cartCountElement.classList.remove('bg-success');
+            }, 1000);
+        }
+    }
+
+    // Анимация кнопки "Добавить в корзину"
+    function animateAddToCartButton(productId) {
+        const buttons = document.querySelectorAll(`[onclick*="${productId}"]`);
+        buttons.forEach(button => {
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check me-2"></i>Добавлено!';
+            button.classList.add('btn-success');
+            button.disabled = true;
+
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.classList.remove('btn-success');
+                button.disabled = false;
+            }, 2000);
+        });
+    }
+
+    // CSS анимации
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOutRight {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
+
+        .cart-count {
+            transition: all 0.3s ease !important;
+        }
+
+        .alert.position-fixed {
+            border: none;
+            border-radius: 8px;
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+
+    <!-- Дополнительные скрипты -->
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
